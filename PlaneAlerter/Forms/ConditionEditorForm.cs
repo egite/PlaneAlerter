@@ -227,19 +227,24 @@ namespace PlaneAlerter.Forms {
 		/// <param name="e">Event Args</param>
 		private void SaveButtonClick(object sender, EventArgs e) {
 			var cancelSave = false;
+			var validationErrors = new List<string>();
 
 			//Check if values are empty/invalid
 			if (conditionNameTextBox.Text == "") {
 				conditionNameLabel.ForeColor = Color.Red;
+				conditionNameLabel.Text = "Condition Name: *";
+				validationErrors.Add("Condition name is required");
 				cancelSave = true;
 			}
 			else {
 				conditionNameLabel.ForeColor = SystemColors.ControlText;
+				conditionNameLabel.Text = "Condition Name:";
 			}
 
 			if (emailCheckBox.Checked) {
 				if (string.IsNullOrWhiteSpace(emailFirstFormatTextBox.Text)) {
 					emailFirstFormatTextBox.ForeColor = Color.Red;
+					validationErrors.Add("First contact email subject is required");
 					cancelSave = true;
 				}
 				else {
@@ -248,6 +253,7 @@ namespace PlaneAlerter.Forms {
 
 				if (string.IsNullOrWhiteSpace(emailLastFormatTextBox.Text)) {
 					emailLastFormatTextBox.ForeColor = Color.Red;
+					validationErrors.Add("Last contact email subject is required");
 					cancelSave = true;
 				}
 				else {
@@ -256,58 +262,70 @@ namespace PlaneAlerter.Forms {
 
 				if (string.IsNullOrWhiteSpace(receiverEmailTextBox.Text)) {
 					emailToSendToLabel.ForeColor = Color.Red;
+					emailToSendToLabel.Text = "Emails to send to (One each line): *";
+					validationErrors.Add("At least one receiver email is required");
 					cancelSave = true;
 				}
 				else {
 					emailToSendToLabel.ForeColor = SystemColors.ControlText;
+					emailToSendToLabel.Text = "Emails to send to (One each line): ";
 				}
 			}
 
 			if (twitterCheckBox.Checked) {
 				if (string.IsNullOrWhiteSpace(twitterAccountComboBox.Text)) {
 					twitterAccountLabel.ForeColor = Color.Red;
+					twitterAccountLabel.Text = "Account: *";
+					validationErrors.Add("Twitter account is required");
 					cancelSave = true;
 				}
 				else {
 					twitterAccountLabel.ForeColor = SystemColors.ControlText;
+					twitterAccountLabel.Text = "Account:";
 				}
 
 				if (string.IsNullOrWhiteSpace(tweetFirstFormatTextBox.Text)) {
 					tweetFirstFormatLabel.ForeColor = Color.Red;
+					validationErrors.Add("First contact tweet format is required");
 					cancelSave = true;
 				}
 				else {
 					if (tweetFirstFormatTextBox.Text.Contains('@')) {
 						tweetFirstFormatLabel.ForeColor = Color.Red;
 						cancelSave = true;
-						MessageBox.Show("Mentions are not allowed in automated tweets as per Twitter rules", "Mentions not permitted");
+						validationErrors.Add("Mentions are not allowed in first contact tweets (Twitter rules)");
 					}
 					else tweetFirstFormatLabel.ForeColor = SystemColors.ControlText;
 				}
 
 				if (string.IsNullOrWhiteSpace(tweetLastFormatTextBox.Text)) {
 					tweetLastFormatLabel.ForeColor = Color.Red;
+					validationErrors.Add("Last contact tweet format is required");
 					cancelSave = true;
 				}
 				else {
 					if (tweetLastFormatTextBox.Text.Contains('@')) {
 						tweetLastFormatLabel.ForeColor = Color.Red;
 						cancelSave = true;
-						MessageBox.Show("Mentions are not allowed in automated tweets as per Twitter rules", "Mentions not permitted");
+						validationErrors.Add("Mentions are not allowed in last contact tweets (Twitter rules)");
 					}
 					else tweetLastFormatLabel.ForeColor = SystemColors.ControlText;
 				}
 			}
 			if (string.IsNullOrWhiteSpace(alertTypeComboBox.Text)) {
 				alertTypeLabel.ForeColor = Color.Red;
+				alertTypeLabel.Text = "Alert Type: *";
+				validationErrors.Add("Alert type is required");
 				cancelSave = true;
 			}
 			else {
 				alertTypeLabel.ForeColor = SystemColors.ControlText;
+				alertTypeLabel.Text = "Alert Type:";
 			}
-			
+
 			if (triggerDataGridView.Rows.Count == 1) {
 				triggerDataGridView.BackgroundColor = Color.Red;
+				validationErrors.Add("At least one trigger is required");
 				cancelSave = true;
 			}
 			else {
@@ -322,12 +340,16 @@ namespace PlaneAlerter.Forms {
 				}
 				catch (FormatException) {
 					emailToSendToLabel.ForeColor = Color.Red;
+					emailToSendToLabel.Text = "Emails to send to (One each line): *";
+					validationErrors.Add("One or more receiver email addresses are invalid");
 					cancelSave = true;
 					break;
 				}
 			}
 			//Cancel if values are invalid
 			if (cancelSave) {
+				MessageBox.Show(string.Join(Environment.NewLine, validationErrors),
+					"Validation Errors", MessageBoxButtons.OK, MessageBoxIcon.Warning);
 				return;
 			}
 

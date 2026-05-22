@@ -92,8 +92,9 @@
 			// triggerDataGridView
 			// 
 			this.triggerDataGridView.AllowUserToResizeRows = false;
-			this.triggerDataGridView.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
-            | System.Windows.Forms.AnchorStyles.Left)));
+			this.triggerDataGridView.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
+            | System.Windows.Forms.AnchorStyles.Left)
+            | System.Windows.Forms.AnchorStyles.Right)));
 			this.triggerDataGridView.AutoSizeColumnsMode = System.Windows.Forms.DataGridViewAutoSizeColumnsMode.Fill;
 			this.triggerDataGridView.BackgroundColor = System.Drawing.SystemColors.ControlLight;
 			this.triggerDataGridView.BorderStyle = System.Windows.Forms.BorderStyle.None;

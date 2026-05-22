@@ -132,6 +132,30 @@ namespace PlaneAlerter.Forms {
 		/// <param name="sender">Sender</param>
 		/// <param name="e">Event Args</param>
 		private void SettingsForm_FormClosing(object sender, FormClosingEventArgs e) {
+			//Validate email address if one is provided
+			if (!string.IsNullOrWhiteSpace(senderEmailTextBox.Text)) {
+				try {
+					new System.Net.Mail.MailAddress(senderEmailTextBox.Text);
+				}
+				catch (FormatException) {
+					if (MessageBox.Show("The sender email address does not appear to be valid. Save anyway?",
+						"Invalid Email", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.No) {
+						e.Cancel = true;
+						return;
+					}
+				}
+			}
+
+			//Validate AircraftList.json URL
+			if (!string.IsNullOrWhiteSpace(aircraftListTextBox.Text) &&
+				!Uri.TryCreate(aircraftListTextBox.Text, UriKind.Absolute, out _)) {
+				if (MessageBox.Show("The AircraftList.json URL does not appear to be valid. Save anyway?",
+					"Invalid URL", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.No) {
+					e.Cancel = true;
+					return;
+				}
+			}
+
 			//Set settings to form element values
 			_settingsManagerService.Settings = new Settings(
 				senderEmailTextBox.Text,
@@ -206,7 +230,15 @@ namespace PlaneAlerter.Forms {
 
 		private async void refreshReceiversButton_Click(object sender, EventArgs e) {
 			_settingsManagerService.Settings.AircraftListUrl = aircraftListTextBox.Text;
-			await UpdateReceivers();
+			Cursor = Cursors.WaitCursor;
+			refreshReceiversButton.Enabled = false;
+			try {
+				await UpdateReceivers();
+			}
+			finally {
+				Cursor = Cursors.Default;
+				refreshReceiversButton.Enabled = true;
+			}
 		}
 	}
 }

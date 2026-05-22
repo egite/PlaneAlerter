@@ -100,22 +100,33 @@ namespace PlaneAlerter.Services
 			if (showTrail)
 			{
 				var trailPoints = new List<double[]>();
-				
-				//Process aircraft trail
-				for (var i = (aircraft.Trail.Length / 4) - 1; i >= 0; i--)
+
+				//Process entire aircraft trail (oldest to newest)
+				for (var i = 0; i < aircraft.Trail.Length / 4; i++)
 				{
 					var lat = aircraft.Trail[i * 4] ?? 0;
 					var lon = aircraft.Trail[i * 4 + 1] ?? 0;
-					
-					trailPoints.Add(new[]{lat,lon});
 
-					//Limit the number of points so that we don't run out of URL, limit is 8100 bytes or about 1700 points
-					if (trailPoints.Count == 1000)
-						break;
+					trailPoints.Add(new[]{lat,lon});
 				}
-				
-				var encodedPolyline = WebUtility.UrlEncode(GooglePolylineEncodingHelper.Encode(trailPoints));
-				
+
+				//Mapbox static map URL limit is 8192 bytes. Trim oldest points if the URL would be too long.
+				const int maxUrlLength = 8100;
+				string encodedPolyline;
+				while (true)
+				{
+					encodedPolyline = WebUtility.UrlEncode(GooglePolylineEncodingHelper.Encode(trailPoints));
+					var estimatedUrlLength = $"https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/pin-s+555555({aircraftLong},{aircraftLat}),path({encodedPolyline})/{bounds}/800x800?access_token={MapboxAccessToken}&padding=100".Length;
+
+					if (estimatedUrlLength <= maxUrlLength || trailPoints.Count <= 2)
+						break;
+
+					//Remove oldest points (from the start) to shorten the URL
+					var removeCount = trailPoints.Count / 10;
+					if (removeCount < 1) removeCount = 1;
+					trailPoints.RemoveRange(0, removeCount);
+				}
+
 				overlays.Add($"path({encodedPolyline})");
 			}
             

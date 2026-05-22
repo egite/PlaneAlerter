@@ -168,7 +168,7 @@
 			this.saveButton.Name = "saveButton";
 			this.saveButton.Size = new System.Drawing.Size(160, 27);
 			this.saveButton.TabIndex = 8;
-			this.saveButton.Text = "Ok";
+			this.saveButton.Text = "Save";
 			this.saveButton.UseVisualStyleBackColor = true;
 			this.saveButton.Click += new System.EventHandler(this.saveButton_Click);
 			// 

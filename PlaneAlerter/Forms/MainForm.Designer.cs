@@ -115,19 +115,19 @@
 			treeNode4.Text = "Program";
 			treeNode5.Name = "settingsNode";
 			treeNode5.Text = "Settings";
-			treeNode6.Name = "Node0";
-			treeNode6.Text = "Node0";
-			treeNode7.Name = "Node1";
-			treeNode7.Text = "Node1";
-			treeNode8.Name = "Node2";
-			treeNode8.Text = "Node2";
+			treeNode6.Name = "totalEmailsNode";
+			treeNode6.Text = "Total Emails Sent: 0";
+			treeNode7.Name = "totalConditionsNode";
+			treeNode7.Text = "Total Conditions: 0";
+			treeNode8.Name = "timeStartedNode";
+			treeNode8.Text = "Time Started: N/A";
 			treeNode9.Name = "statsNode";
 			treeNode9.Text = "Statistics";
 			this.conditionTreeView.Nodes.AddRange(new System.Windows.Forms.TreeNode[] {
             treeNode1,
             treeNode5,
             treeNode9});
-			this.conditionTreeView.Size = new System.Drawing.Size(225, 138);
+			this.conditionTreeView.Size = new System.Drawing.Size(375, 138);
 			this.conditionTreeView.TabIndex = 1;
 			// 
 			// menuStrip1
@@ -142,7 +142,7 @@
 			this.menuStrip1.Location = new System.Drawing.Point(0, 0);
 			this.menuStrip1.Name = "menuStrip1";
 			this.menuStrip1.Padding = new System.Windows.Forms.Padding(7, 2, 0, 2);
-			this.menuStrip1.Size = new System.Drawing.Size(784, 24);
+			this.menuStrip1.Size = new System.Drawing.Size(934, 24);
 			this.menuStrip1.TabIndex = 2;
 			this.menuStrip1.Text = "menuStrip";
 			// 
@@ -251,7 +251,7 @@
 			this.statusStrip1.Location = new System.Drawing.Point(0, 339);
 			this.statusStrip1.Name = "statusStrip1";
 			this.statusStrip1.Padding = new System.Windows.Forms.Padding(1, 0, 16, 0);
-			this.statusStrip1.Size = new System.Drawing.Size(784, 22);
+			this.statusStrip1.Size = new System.Drawing.Size(934, 22);
 			this.statusStrip1.TabIndex = 3;
 			this.statusStrip1.Text = "statusStrip1";
 			// 
@@ -282,8 +282,8 @@
 			// splitContainer1.Panel2
 			// 
 			this.splitContainer1.Panel2.Controls.Add(this.console);
-			this.splitContainer1.Size = new System.Drawing.Size(784, 315);
-			this.splitContainer1.SplitterDistance = 225;
+			this.splitContainer1.Size = new System.Drawing.Size(934, 315);
+			this.splitContainer1.SplitterDistance = 375;
 			this.splitContainer1.SplitterWidth = 5;
 			this.splitContainer1.TabIndex = 5;
 			// 
@@ -303,7 +303,7 @@
 			// 
 			this.splitContainer2.Panel2.Controls.Add(this.activeAlertsLabel);
 			this.splitContainer2.Panel2.Controls.Add(this.activeMatchesDataGridView);
-			this.splitContainer2.Size = new System.Drawing.Size(225, 315);
+			this.splitContainer2.Size = new System.Drawing.Size(375, 315);
 			this.splitContainer2.SplitterDistance = 138;
 			this.splitContainer2.SplitterWidth = 5;
 			this.splitContainer2.TabIndex = 0;
@@ -356,44 +356,45 @@
 			this.activeMatchesDataGridView.Name = "activeMatchesDataGridView";
 			this.activeMatchesDataGridView.ReadOnly = true;
 			this.activeMatchesDataGridView.RowHeadersVisible = false;
-			this.activeMatchesDataGridView.Size = new System.Drawing.Size(225, 154);
+			this.activeMatchesDataGridView.Size = new System.Drawing.Size(375, 154);
 			this.activeMatchesDataGridView.TabIndex = 1;
-			// 
+			//
 			// Column1
-			// 
-			this.Column1.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.AllCellsExceptHeader;
+			//
+			this.Column1.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.Fill;
+			this.Column1.FillWeight = 15F;
 			this.Column1.HeaderText = "ICAO";
 			this.Column1.Name = "Column1";
 			this.Column1.ReadOnly = true;
-			this.Column1.Width = 5;
-			// 
+			//
 			// Column2
-			// 
-			this.Column2.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.AllCellsExceptHeader;
+			//
+			this.Column2.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.Fill;
+			this.Column2.FillWeight = 15F;
 			this.Column2.HeaderText = "Reg";
 			this.Column2.Name = "Column2";
 			this.Column2.ReadOnly = true;
-			this.Column2.Width = 5;
-			// 
+			//
 			// Column3
-			// 
-			this.Column3.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.AllCellsExceptHeader;
+			//
+			this.Column3.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.Fill;
+			this.Column3.FillWeight = 15F;
 			this.Column3.HeaderText = "Type";
 			this.Column3.Name = "Column3";
 			this.Column3.ReadOnly = true;
-			this.Column3.Width = 5;
-			// 
+			//
 			// Column4
-			// 
-			this.Column4.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.AllCellsExceptHeader;
+			//
+			this.Column4.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.Fill;
+			this.Column4.FillWeight = 20F;
 			this.Column4.HeaderText = "Callsign";
 			this.Column4.Name = "Column4";
 			this.Column4.ReadOnly = true;
-			this.Column4.Width = 5;
-			// 
+			//
 			// Column5
-			// 
+			//
 			this.Column5.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.Fill;
+			this.Column5.FillWeight = 35F;
 			this.Column5.HeaderText = "Condition";
 			this.Column5.Name = "Column5";
 			this.Column5.ReadOnly = true;
@@ -402,7 +403,7 @@
 			// 
 			this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
 			this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-			this.ClientSize = new System.Drawing.Size(784, 361);
+			this.ClientSize = new System.Drawing.Size(934, 361);
 			this.Controls.Add(this.splitContainer1);
 			this.Controls.Add(this.statusStrip1);
 			this.Controls.Add(this.menuStrip1);

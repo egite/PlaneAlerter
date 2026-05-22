@@ -82,10 +82,10 @@
 			this.removeConditionButton.Text = "Remove";
 			this.removeConditionButton.UseVisualStyleBackColor = true;
 			this.removeConditionButton.Click += new System.EventHandler(this.RemoveConditionButtonClick);
-			// 
+			//
 			// moveUpButton
-			// 
-			this.moveUpButton.Location = new System.Drawing.Point(208, 11);
+			//
+			this.moveUpButton.Location = new System.Drawing.Point(221, 11);
 			this.moveUpButton.Margin = new System.Windows.Forms.Padding(2);
 			this.moveUpButton.Name = "moveUpButton";
 			this.moveUpButton.Size = new System.Drawing.Size(60, 23);
@@ -96,7 +96,7 @@
 			// 
 			// moveDownButton
 			// 
-			this.moveDownButton.Location = new System.Drawing.Point(272, 11);
+			this.moveDownButton.Location = new System.Drawing.Point(285, 11);
 			this.moveDownButton.Margin = new System.Windows.Forms.Padding(2);
 			this.moveDownButton.Name = "moveDownButton";
 			this.moveDownButton.Size = new System.Drawing.Size(77, 23);

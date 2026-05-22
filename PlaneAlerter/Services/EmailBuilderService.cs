@@ -86,16 +86,16 @@ namespace PlaneAlerter.Services
 				body += "<h2 style='margin: 0px;margin-bottom: 2px;'>Transponder: " + transponderName + "</h2>";
 			}
 
-			//Radar url
-			if (_settingsManagerService.EmailContentConfig.RadarLink)
-				body += $"<h3><a style='text-decoration: none;' href='{_settingsManagerService.Settings.RadarUrl}?icao={aircraft.Icao}'>Goto Radar</a></h3>";
+            //Radar urls
+            if (_settingsManagerService.EmailContentConfig.RadarLink)
+                body += $"<h2>Track live on:  <a style='text-decoration: none;' href='{_settingsManagerService.Settings.RadarUrl}?icao={aircraft.Icao}&movingMap=1'>VRS</a>,  <a style='text-decoration: none;' href='https://globe.airplanes.live/?icao={aircraft.Icao}'>Airlines.Live</a>, <a style='text-decoration: none;' href='https://globe.adsbexchange.com/?icao={aircraft.Icao}'>ADS-Bx</a> or <a style='text-decoration: none;' href='https://opensky-network.org/aircraft-profile?icao24={aircraft.Icao}'>OpenSky</a></h2>";
 
-			//Report url
-			if (_settingsManagerService.EmailContentConfig.ReportLink)
-				body += $"<h3>VRS Report: <a style='text-decoration: none;' href='{_urlBuilderService.GenerateReportUrl(aircraft.Icao, false)}'>Desktop</a>   <a style='text-decoration: none;' href='{_urlBuilderService.GenerateReportUrl(aircraft.Icao, true)}'>Mobile</a></h3>";
+            //Report url
+            if (_settingsManagerService.EmailContentConfig.ReportLink)
+                body += $"<h3>VRS Report: <a style='text-decoration: none;' href='{_urlBuilderService.GenerateReportUrl(aircraft.Icao, false)}'>Desktop</a>,  <a style='text-decoration: none;' href='{_urlBuilderService.GenerateReportUrl(aircraft.Icao, true)}'>Mobile</a></h3>";
 
-			//Airframes.org url
-			if (_settingsManagerService.EmailContentConfig.AfLookup && !string.IsNullOrEmpty(aircraft.GetProperty("Reg")))
+            //Airframes.org url
+            if (_settingsManagerService.EmailContentConfig.AfLookup && !string.IsNullOrEmpty(aircraft.GetProperty("Reg")))
 				body +=
 					$"<h3><a style='text-decoration: none;' href='{_urlBuilderService.GenerateAirframesOrgUrl(aircraft.GetProperty("Reg")!)}'>Airframes.org Lookup</a></h3>";
 

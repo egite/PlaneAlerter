@@ -583,6 +583,8 @@
 			this.radarGroupBox.Controls.Add(this.label3);
 			this.radarGroupBox.Controls.Add(this.label4);
 			this.radarGroupBox.Controls.Add(this.label11);
+			this.radarGroupBox.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
+            | System.Windows.Forms.AnchorStyles.Right)));
 			this.radarGroupBox.Location = new System.Drawing.Point(405, 14);
 			this.radarGroupBox.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
 			this.radarGroupBox.Name = "radarGroupBox";
@@ -828,10 +830,10 @@
 			this.Controls.Add(this.radarGroupBox);
 			this.Controls.Add(this.emailGroupBox);
 			this.Controls.Add(this.saveSettingsButton);
-			this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedDialog;
+			this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.Sizable;
 			this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
 			this.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
-			this.MaximizeBox = false;
+			this.MinimumSize = new System.Drawing.Size(819, 480);
 			this.Name = "SettingsForm";
 			this.Text = "Configure Settings";
 			this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.SettingsForm_FormClosing);
