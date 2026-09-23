@@ -88,7 +88,7 @@ namespace PlaneAlerter.Services
 
             //Radar urls
             if (_settingsManagerService.EmailContentConfig.RadarLink)
-                body += $"<h2>Track live on:  <a style='text-decoration: none;' href='{_settingsManagerService.Settings.RadarUrl}?icao={aircraft.Icao}&movingMap=1'>VRS</a>,  <a style='text-decoration: none;' href='https://globe.airplanes.live/?icao={aircraft.Icao}'>Airlines.Live</a>, <a style='text-decoration: none;' href='https://globe.adsbexchange.com/?icao={aircraft.Icao}'>ADS-Bx</a> or <a style='text-decoration: none;' href='https://opensky-network.org/aircraft-profile?icao24={aircraft.Icao}'>OpenSky</a></h2>";
+                body += $"<h2>Track live on:  <a style='text-decoration: none;' href='{_settingsManagerService.Settings.RadarUrl}?icao={aircraft.Icao}&movingMap=1'>VRS</a>,  <a style='text-decoration: none;' href='https://globe.airplanes.live/?icao={aircraft.Icao}'>Airlines.Live</a>, <a style='text-decoration: none;' href='https://globe.adsbexchange.com/?icao={aircraft.Icao}'>ADS-Bx</a> or <a style='text-decoration: none;' href='https://map.opensky-network.org/?icao={aircraft.Icao.ToLower()}'>OpenSky</a></h2>";
 
             //Report url
             if (_settingsManagerService.EmailContentConfig.ReportLink)
