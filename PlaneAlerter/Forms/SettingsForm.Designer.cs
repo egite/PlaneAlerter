@@ -79,6 +79,10 @@
 			this.centreAircraftRadioButton = new System.Windows.Forms.RadioButton();
 			this.refreshTextBox = new System.Windows.Forms.NumericUpDown();
 			this.groupBox1 = new System.Windows.Forms.GroupBox();
+			this.mapsGroupBox = new System.Windows.Forms.GroupBox();
+			this.mapboxTokenLabel = new System.Windows.Forms.Label();
+			this.mapboxTokenTextBox = new System.Windows.Forms.TextBox();
+			this.cancelButton = new System.Windows.Forms.Button();
 			((System.ComponentModel.ISupportInitialize)(this.removalTimeoutTextBox)).BeginInit();
 			((System.ComponentModel.ISupportInitialize)(this.smtpHostPortTextBox)).BeginInit();
 			this.emailGroupBox.SuspendLayout();
@@ -92,6 +96,7 @@
 			this.programGroupBox.SuspendLayout();
 			((System.ComponentModel.ISupportInitialize)(this.refreshTextBox)).BeginInit();
 			this.groupBox1.SuspendLayout();
+			this.mapsGroupBox.SuspendLayout();
 			this.SuspendLayout();
 			// 
 			// senderEmailTextBox
@@ -420,14 +425,14 @@
 			this.gmailLink.Size = new System.Drawing.Size(210, 15);
 			this.gmailLink.TabIndex = 6;
 			this.gmailLink.TabStop = true;
-			this.gmailLink.Text = "Enable this thing if sending with Gmail";
+			this.gmailLink.Text = "Using Gmail? Create an App Password";
 			this.toolTip.SetToolTip(this.gmailLink, resources.GetString("gmailLink.ToolTip"));
 			this.gmailLink.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.gmailLink_LinkClicked);
 			// 
 			// label14
 			// 
 			this.label14.AutoSize = true;
-			this.label14.Location = new System.Drawing.Point(7, 112);
+			this.label14.Location = new System.Drawing.Point(7, 24);
 			this.label14.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
 			this.label14.Name = "label14";
 			this.label14.Size = new System.Drawing.Size(91, 15);
@@ -525,7 +530,7 @@
 			// saveSettingsButton
 			// 
 			this.saveSettingsButton.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
-			this.saveSettingsButton.Location = new System.Drawing.Point(668, 401);
+			this.saveSettingsButton.Location = new System.Drawing.Point(668, 475);
 			this.saveSettingsButton.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
 			this.saveSettingsButton.Name = "saveSettingsButton";
 			this.saveSettingsButton.Size = new System.Drawing.Size(120, 27);
@@ -548,7 +553,7 @@
 			this.emailGroupBox.Controls.Add(this.smtpPwdTextBox);
 			this.emailGroupBox.Controls.Add(this.label6);
 			this.emailGroupBox.Controls.Add(this.smtpSSLCheckBox);
-			this.emailGroupBox.Location = new System.Drawing.Point(14, 218);
+			this.emailGroupBox.Location = new System.Drawing.Point(14, 185);
 			this.emailGroupBox.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
 			this.emailGroupBox.Name = "emailGroupBox";
 			this.emailGroupBox.Padding = new System.Windows.Forms.Padding(4, 3, 4, 3);
@@ -741,9 +746,6 @@
 			// 
 			// programGroupBox
 			// 
-			this.programGroupBox.Controls.Add(this.centreLatLngRadioButton);
-			this.programGroupBox.Controls.Add(this.centreAircraftRadioButton);
-			this.programGroupBox.Controls.Add(this.label14);
 			this.programGroupBox.Controls.Add(this.startOnStartCheckBox);
 			this.programGroupBox.Controls.Add(this.refreshLabel);
 			this.programGroupBox.Controls.Add(this.refreshTextBox);
@@ -754,7 +756,7 @@
 			this.programGroupBox.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
 			this.programGroupBox.Name = "programGroupBox";
 			this.programGroupBox.Padding = new System.Windows.Forms.Padding(4, 3, 4, 3);
-			this.programGroupBox.Size = new System.Drawing.Size(384, 141);
+			this.programGroupBox.Size = new System.Drawing.Size(384, 108);
 			this.programGroupBox.TabIndex = 0;
 			this.programGroupBox.TabStop = false;
 			this.programGroupBox.Text = "General";
@@ -762,7 +764,7 @@
 			// centreLatLngRadioButton
 			// 
 			this.centreLatLngRadioButton.AutoSize = true;
-			this.centreLatLngRadioButton.Location = new System.Drawing.Point(259, 110);
+			this.centreLatLngRadioButton.Location = new System.Drawing.Point(259, 22);
 			this.centreLatLngRadioButton.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
 			this.centreLatLngRadioButton.Name = "centreLatLngRadioButton";
 			this.centreLatLngRadioButton.Size = new System.Drawing.Size(116, 19);
@@ -774,7 +776,7 @@
 			// 
 			this.centreAircraftRadioButton.AutoSize = true;
 			this.centreAircraftRadioButton.Checked = true;
-			this.centreAircraftRadioButton.Location = new System.Drawing.Point(187, 110);
+			this.centreAircraftRadioButton.Location = new System.Drawing.Point(187, 22);
 			this.centreAircraftRadioButton.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
 			this.centreAircraftRadioButton.Name = "centreAircraftRadioButton";
 			this.centreAircraftRadioButton.Size = new System.Drawing.Size(64, 19);
@@ -811,7 +813,7 @@
 			this.groupBox1.Controls.Add(this.flashWindowCheckBox);
 			this.groupBox1.Controls.Add(this.soundAlertsCheckBox);
 			this.groupBox1.Controls.Add(this.notificationsCheckBox);
-			this.groupBox1.Location = new System.Drawing.Point(14, 161);
+			this.groupBox1.Location = new System.Drawing.Point(14, 128);
 			this.groupBox1.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
 			this.groupBox1.Name = "groupBox1";
 			this.groupBox1.Padding = new System.Windows.Forms.Padding(4, 3, 4, 3);
@@ -820,11 +822,62 @@
 			this.groupBox1.TabStop = false;
 			this.groupBox1.Text = "Alert Actions";
 			// 
+			// mapsGroupBox
+			// 
+			this.mapsGroupBox.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
+			this.mapsGroupBox.Controls.Add(this.label14);
+			this.mapsGroupBox.Controls.Add(this.centreAircraftRadioButton);
+			this.mapsGroupBox.Controls.Add(this.centreLatLngRadioButton);
+			this.mapsGroupBox.Controls.Add(this.mapboxTokenLabel);
+			this.mapsGroupBox.Controls.Add(this.mapboxTokenTextBox);
+			this.mapsGroupBox.Location = new System.Drawing.Point(405, 380);
+			this.mapsGroupBox.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+			this.mapsGroupBox.Name = "mapsGroupBox";
+			this.mapsGroupBox.Padding = new System.Windows.Forms.Padding(4, 3, 4, 3);
+			this.mapsGroupBox.Size = new System.Drawing.Size(384, 85);
+			this.mapsGroupBox.TabIndex = 5;
+			this.mapsGroupBox.TabStop = false;
+			this.mapsGroupBox.Text = "Maps";
+			// 
+			// mapboxTokenLabel
+			// 
+			this.mapboxTokenLabel.AutoSize = true;
+			this.mapboxTokenLabel.Location = new System.Drawing.Point(7, 55);
+			this.mapboxTokenLabel.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+			this.mapboxTokenLabel.Name = "mapboxTokenLabel";
+			this.mapboxTokenLabel.Size = new System.Drawing.Size(120, 15);
+			this.mapboxTokenLabel.TabIndex = 30;
+			this.mapboxTokenLabel.Text = "Mapbox access token";
+			this.toolTip.SetToolTip(this.mapboxTokenLabel, "Your own Mapbox public token (pk.…) for the static map in alert emails.\r\nFree at https://account.mapbox.com/. Leave blank to use the built-in token, which may stop working.");
+			// 
+			// mapboxTokenTextBox
+			// 
+			this.mapboxTokenTextBox.Location = new System.Drawing.Point(159, 52);
+			this.mapboxTokenTextBox.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+			this.mapboxTokenTextBox.Name = "mapboxTokenTextBox";
+			this.mapboxTokenTextBox.Size = new System.Drawing.Size(216, 23);
+			this.mapboxTokenTextBox.TabIndex = 6;
+			// 
+			// cancelButton
+			// 
+			this.cancelButton.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
+			this.cancelButton.Location = new System.Drawing.Point(540, 475);
+			this.cancelButton.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+			this.cancelButton.Name = "cancelButton";
+			this.cancelButton.Size = new System.Drawing.Size(120, 27);
+			this.cancelButton.TabIndex = 7;
+			this.cancelButton.Text = "Cancel";
+			this.cancelButton.UseVisualStyleBackColor = true;
+			this.cancelButton.Click += new System.EventHandler(this.cancelButton_Click);
+			// 
 			// SettingsForm
 			// 
 			this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
 			this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-			this.ClientSize = new System.Drawing.Size(803, 441);
+			this.CancelButton = this.cancelButton;
+			this.ClientSize = new System.Drawing.Size(803, 515);
+			this.Controls.Add(this.mapsGroupBox);
+			this.Controls.Add(this.cancelButton);
 			this.Controls.Add(this.groupBox1);
 			this.Controls.Add(this.programGroupBox);
 			this.Controls.Add(this.radarGroupBox);
@@ -833,7 +886,7 @@
 			this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.Sizable;
 			this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
 			this.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
-			this.MinimumSize = new System.Drawing.Size(819, 480);
+			this.MinimumSize = new System.Drawing.Size(819, 554);
 			this.Name = "SettingsForm";
 			this.Text = "Configure Settings";
 			this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.SettingsForm_FormClosing);
@@ -855,6 +908,8 @@
 			((System.ComponentModel.ISupportInitialize)(this.refreshTextBox)).EndInit();
 			this.groupBox1.ResumeLayout(false);
 			this.groupBox1.PerformLayout();
+			this.mapsGroupBox.ResumeLayout(false);
+			this.mapsGroupBox.PerformLayout();
 			this.ResumeLayout(false);
 
 		}
@@ -915,5 +970,9 @@
 		private System.Windows.Forms.NumericUpDown trailsAgeNumericUpDown;
 		private System.Windows.Forms.GroupBox groupBox1;
 		private System.Windows.Forms.CheckBox flashWindowCheckBox;
+		private System.Windows.Forms.GroupBox mapsGroupBox;
+		private System.Windows.Forms.Label mapboxTokenLabel;
+		private System.Windows.Forms.TextBox mapboxTokenTextBox;
+		private System.Windows.Forms.Button cancelButton;
 	}
 }

@@ -61,8 +61,8 @@
     <value>22, 8</value>
   </metadata>
   <data name="gmailLink.ToolTip" xml:space="preserve">
-    <value>Gmail requires less secure apps to be enabled, or app passwords must be used if you use two-factor authentication.
-This is because Gmail normally requires apps to use OAuth to authenticate users, and PlaneAlerter uses regular SMTP username/password logins.</value>
+    <value>Gmail no longer accepts your normal account password over SMTP.
+Turn on 2-Step Verification, create an App Password at myaccount.google.com/apppasswords, and enter it as the SMTP password here.</value>
   </data>
   <data name="label12.ToolTip" xml:space="preserve">
     <value>Only request trails every x number of checks, can reduce the bandwidth usage a lot.

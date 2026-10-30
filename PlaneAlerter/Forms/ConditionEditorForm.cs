@@ -14,8 +14,6 @@ namespace PlaneAlerter.Forms {
 	/// </summary>
 	internal partial class ConditionEditorForm :Form {
 		private readonly IConditionManagerService _conditionManagerService;
-		private readonly ISettingsManagerService _settingsManagerService;
-		private readonly ITwitterService _twitterService;
 
 		/// <summary>
 		/// Id of condition to update
@@ -26,17 +24,17 @@ namespace PlaneAlerter.Forms {
 		/// Is this updating the condition?
 		/// </summary>
 		private bool _isUpdating;
-		
+
 		/// <summary>
 		/// Initialise form with no existing condition
 		/// </summary>
-		public ConditionEditorForm(IConditionManagerService conditionManagerService, ISettingsManagerService settingsManagerService, ITwitterService twitterService) {
+		public ConditionEditorForm(IConditionManagerService conditionManagerService) {
 			_conditionManagerService = conditionManagerService;
-			_settingsManagerService = settingsManagerService;
-			_twitterService = twitterService;
-			
+
 			//Initialise form elements
 			InitializeComponent();
+			Theme.Apply(this);
+			Theme.MakePrimary(saveButton);
 
 			//Add vrs properties to triggers table
 			var rows = triggerDataGridView.Rows.Cast<DataGridViewRow>();
@@ -49,25 +47,11 @@ namespace PlaneAlerter.Forms {
 			foreach (AlertType property in Enum.GetValues(typeof(AlertType)))
 				alertTypeComboBox.Items.Add(property.ToString().Replace('_', ' '));
 
-			//Add tweet link types
-			foreach (TweetLink linkType in Enum.GetValues(typeof(TweetLink)))
-				tweetLinkComboBox.Items.Add(linkType.ToString().Replace('_', ' '));
-
-			//Add Twitter accounts to combobox
-			twitterAccountComboBox.Items.Add("Add Account");
-			twitterAccountComboBox.Items.AddRange(_settingsManagerService.Settings.TwitterUsers.Keys.ToArray());
-
 			//Set Defaults
 			conditionNameTextBox.Text = "New Condition";
-			tweetFirstFormatTextBox.Text = "";
-			emailCheckBox.Checked = false;
+			emailCheckBox.Checked = true;
 			emailFirstFormatTextBox.Text = "First Contact Alert! [conditionname]: [reg]";
 			emailLastFormatTextBox.Text = "Last Contact Alert! [conditionname]: [reg]";
-			twitterCheckBox.Checked = false;
-			twitterAccountComboBox.Text = "";
-			tweetLinkComboBox.SelectedIndex = 0;
-			tweetFirstFormatTextBox.Text = "Alert! Registration: [Reg], Callsign: [Call]";
-			tweetLastFormatTextBox.Text = "Aircraft out of range, Registration: [Reg], Callsign: [Call]";
 			alertTypeComboBox.SelectedIndex = 1;
 			triggersLogicAnyRadioButton.Checked = false;
 			triggersLogicAllRadioButton.Checked = true;
@@ -87,12 +71,6 @@ namespace PlaneAlerter.Forms {
 			emailFirstFormatTextBox.Text = c.EmailFirstFormat;
 			emailLastFormatTextBox.Text = c.EmailLastFormat;
 			receiverEmailTextBox.Text = string.Join(Environment.NewLine, c.ReceiverEmails.ToArray());
-			twitterCheckBox.Checked = c.TwitterEnabled;
-			twitterAccountComboBox.Text = c.TwitterAccount;
-			tweetFirstFormatTextBox.Text = c.TweetFirstFormat;
-			tweetLastFormatTextBox.Text = c.TweetLastFormat;
-			tweetMapCheckBox.Checked = c.TweetMap;
-			tweetLinkComboBox.Text = c.TweetLink.ToString().Replace('_', ' ');
 			alertTypeComboBox.Text = c.AlertType.ToString().Replace('_', ' ');
 
 			foreach (var trigger in c.Triggers.Values)
@@ -107,7 +85,7 @@ namespace PlaneAlerter.Forms {
 				newRow.Cells[2].Value = trigger.Value;
 			}
 		}
-		
+
 		/// <summary>
 		/// Trigger table cell value changed
 		/// </summary>
@@ -194,7 +172,7 @@ namespace PlaneAlerter.Forms {
 				comparisonTypeComboBoxCell.Value = comparisonTypeComboBoxCell.Items[0].ToString();
 			}
 		}
-		
+
 		/// <summary>
 		/// Trigger table row added
 		/// </summary>
@@ -219,7 +197,7 @@ namespace PlaneAlerter.Forms {
 			comparisonComboBoxCell.ReadOnly = true;
 			valueCell.ReadOnly = true;
 		}
-		
+
 		/// <summary>
 		/// Save button click
 		/// </summary>
@@ -237,7 +215,7 @@ namespace PlaneAlerter.Forms {
 				cancelSave = true;
 			}
 			else {
-				conditionNameLabel.ForeColor = SystemColors.ControlText;
+				conditionNameLabel.ForeColor = Theme.Text;
 				conditionNameLabel.Text = "Condition Name:";
 			}
 
@@ -248,7 +226,7 @@ namespace PlaneAlerter.Forms {
 					cancelSave = true;
 				}
 				else {
-					emailFirstFormatTextBox.ForeColor = SystemColors.ControlText;
+					emailFirstFormatTextBox.ForeColor = Theme.Text;
 				}
 
 				if (string.IsNullOrWhiteSpace(emailLastFormatTextBox.Text)) {
@@ -257,7 +235,7 @@ namespace PlaneAlerter.Forms {
 					cancelSave = true;
 				}
 				else {
-					emailLastFormatTextBox.ForeColor = SystemColors.ControlText;
+					emailLastFormatTextBox.ForeColor = Theme.Text;
 				}
 
 				if (string.IsNullOrWhiteSpace(receiverEmailTextBox.Text)) {
@@ -267,51 +245,11 @@ namespace PlaneAlerter.Forms {
 					cancelSave = true;
 				}
 				else {
-					emailToSendToLabel.ForeColor = SystemColors.ControlText;
+					emailToSendToLabel.ForeColor = Theme.Text;
 					emailToSendToLabel.Text = "Emails to send to (One each line): ";
 				}
 			}
 
-			if (twitterCheckBox.Checked) {
-				if (string.IsNullOrWhiteSpace(twitterAccountComboBox.Text)) {
-					twitterAccountLabel.ForeColor = Color.Red;
-					twitterAccountLabel.Text = "Account: *";
-					validationErrors.Add("Twitter account is required");
-					cancelSave = true;
-				}
-				else {
-					twitterAccountLabel.ForeColor = SystemColors.ControlText;
-					twitterAccountLabel.Text = "Account:";
-				}
-
-				if (string.IsNullOrWhiteSpace(tweetFirstFormatTextBox.Text)) {
-					tweetFirstFormatLabel.ForeColor = Color.Red;
-					validationErrors.Add("First contact tweet format is required");
-					cancelSave = true;
-				}
-				else {
-					if (tweetFirstFormatTextBox.Text.Contains('@')) {
-						tweetFirstFormatLabel.ForeColor = Color.Red;
-						cancelSave = true;
-						validationErrors.Add("Mentions are not allowed in first contact tweets (Twitter rules)");
-					}
-					else tweetFirstFormatLabel.ForeColor = SystemColors.ControlText;
-				}
-
-				if (string.IsNullOrWhiteSpace(tweetLastFormatTextBox.Text)) {
-					tweetLastFormatLabel.ForeColor = Color.Red;
-					validationErrors.Add("Last contact tweet format is required");
-					cancelSave = true;
-				}
-				else {
-					if (tweetLastFormatTextBox.Text.Contains('@')) {
-						tweetLastFormatLabel.ForeColor = Color.Red;
-						cancelSave = true;
-						validationErrors.Add("Mentions are not allowed in last contact tweets (Twitter rules)");
-					}
-					else tweetLastFormatLabel.ForeColor = SystemColors.ControlText;
-				}
-			}
 			if (string.IsNullOrWhiteSpace(alertTypeComboBox.Text)) {
 				alertTypeLabel.ForeColor = Color.Red;
 				alertTypeLabel.Text = "Alert Type: *";
@@ -319,33 +257,38 @@ namespace PlaneAlerter.Forms {
 				cancelSave = true;
 			}
 			else {
-				alertTypeLabel.ForeColor = SystemColors.ControlText;
+				alertTypeLabel.ForeColor = Theme.Text;
 				alertTypeLabel.Text = "Alert Type:";
 			}
 
 			if (triggerDataGridView.Rows.Count == 1) {
-				triggerDataGridView.BackgroundColor = Color.Red;
+				triggerDataGridView.BackgroundColor = Theme.ErrorBackground;
 				validationErrors.Add("At least one trigger is required");
 				cancelSave = true;
 			}
 			else {
-				triggerDataGridView.BackgroundColor = SystemColors.ControlLight;
+				triggerDataGridView.BackgroundColor = Theme.Surface;
 			}
+
 			//Trim empty lines from email textbox
 			receiverEmailTextBox.Text = receiverEmailTextBox.Text.TrimEnd('\r', '\n');
+
 			//Check if emails are valid
-			foreach (var line in receiverEmailTextBox.Lines) {
-				try {
-					new System.Net.Mail.MailAddress(line);
-				}
-				catch (FormatException) {
-					emailToSendToLabel.ForeColor = Color.Red;
-					emailToSendToLabel.Text = "Emails to send to (One each line): *";
-					validationErrors.Add("One or more receiver email addresses are invalid");
-					cancelSave = true;
-					break;
+			if (emailCheckBox.Checked) {
+				foreach (var line in receiverEmailTextBox.Lines) {
+					try {
+						new System.Net.Mail.MailAddress(line);
+					}
+					catch (FormatException) {
+						emailToSendToLabel.ForeColor = Color.Red;
+						emailToSendToLabel.Text = "Emails to send to (One each line): *";
+						validationErrors.Add("One or more receiver email addresses are invalid");
+						cancelSave = true;
+						break;
+					}
 				}
 			}
+
 			//Cancel if values are invalid
 			if (cancelSave) {
 				MessageBox.Show(string.Join(Environment.NewLine, validationErrors),
@@ -366,6 +309,11 @@ namespace PlaneAlerter.Forms {
 			_conditionManagerService.EditorConditions = sortedConditions;
 
 			//Create new condition
+			var receiverEmails = receiverEmailTextBox.Text
+				.Split(new[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries)
+				.Select(x => x.Trim())
+				.ToList();
+
 			var newCondition = new Condition(
 				conditionNameTextBox.Text,
 				(AlertType)Enum.Parse(typeof(AlertType), alertTypeComboBox.Text.Replace(' ', '_')),
@@ -374,13 +322,7 @@ namespace PlaneAlerter.Forms {
 				emailCheckBox.Checked,
 				emailFirstFormatTextBox.Text,
 				emailLastFormatTextBox.Text,
-				receiverEmailTextBox.Text.Split(new[] { Environment.NewLine }, StringSplitOptions.None).ToList(),
-				twitterCheckBox.Checked,
-				twitterAccountComboBox.Text,
-				tweetFirstFormatTextBox.Text,
-				tweetLastFormatTextBox.Text,
-				tweetMapCheckBox.Checked,
-				(TweetLink)Enum.Parse(typeof(TweetLink), tweetLinkComboBox.Text.Replace(' ', '_')));
+				receiverEmails);
 
 			if (triggerDataGridView.Rows.Count != 0)
 			{
@@ -394,15 +336,15 @@ namespace PlaneAlerter.Forms {
 						? (VrsProperty?)Enum.Parse(typeof(VrsProperty), selectedPropertyKey.Replace(' ', '_'))
 						: null;
 
-					var comparisonType = row.Cells[1].Value.ToString();
+					var comparisonType = row.Cells[1].Value?.ToString();
 
 					if (selectedProperty == null || string.IsNullOrEmpty(comparisonType))
 						continue;
-					
+
 					newCondition.Triggers.Add(newCondition.Triggers.Count,
 						new Trigger(
 							selectedProperty.Value,
-							row.Cells[2].Value.ToString() ?? "",
+							row.Cells[2].Value?.ToString() ?? "",
 							comparisonType));
 				}
 			}
@@ -413,6 +355,7 @@ namespace PlaneAlerter.Forms {
 				_conditionManagerService.EditorConditions.Count, newCondition);
 
 			//Close form
+			DialogResult = DialogResult.OK;
 			Close();
 		}
 
@@ -430,32 +373,6 @@ namespace PlaneAlerter.Forms {
 		/// </summary>
 		private void emailCheckBox_CheckedChanged(object sender, EventArgs e) {
 			UpdateUiState();
-		}
-
-		/// <summary>
-		/// Update controls when twitter checkbox is toggled
-		/// </summary>
-		private void twitterCheckBox_CheckedChanged(object sender, EventArgs e) {
-			UpdateUiState();
-		}
-		
-		//Show add account dialog if add account is selected
-		private async void twitterAccountComboBox_SelectedIndexChanged(object sender, EventArgs e)
-		{
-			if (twitterAccountComboBox.Text != "Add Account")
-				return;
-
-			//Show add account dialog
-			await _twitterService.AddAccount();
-				
-			//Update accounts
-			twitterAccountComboBox.Items.Clear();
-			twitterAccountComboBox.Items.Add("Add Account");
-			twitterAccountComboBox.Items.AddRange(_settingsManagerService.Settings.TwitterUsers.Keys.ToArray());
-
-			//Clear selection
-			twitterAccountComboBox.SelectedIndex = -1;
-			twitterAccountComboBox.Text = "";
 		}
 
 		private void triggerDataGridView_CellMouseClick(object sender, DataGridViewCellMouseEventArgs e) {
@@ -485,16 +402,10 @@ namespace PlaneAlerter.Forms {
 			if (!string.IsNullOrEmpty(alertTypeComboBox.Text)) {
 				alertType = (AlertType)Enum.Parse(typeof(AlertType), alertTypeComboBox.Text.Replace(' ', '_'));
 			}
-			
+
 			emailFirstFormatTextBox.Enabled = emailCheckBox.Checked && (alertType != AlertType.Last_Contact);
 			emailLastFormatTextBox.Enabled = emailCheckBox.Checked && (alertType != AlertType.First_Contact);
 			receiverEmailTextBox.Enabled = emailCheckBox.Checked;
-
-			twitterAccountComboBox.Enabled = twitterCheckBox.Checked;
-			tweetFirstFormatTextBox.Enabled = twitterCheckBox.Checked && (alertType != AlertType.Last_Contact);
-			tweetLastFormatTextBox.Enabled = twitterCheckBox.Checked && (alertType != AlertType.First_Contact);
-			tweetLinkComboBox.Enabled = twitterCheckBox.Checked;
-			tweetMapCheckBox.Enabled = twitterCheckBox.Checked;
 		}
 
 		private void alertTypeComboBox_SelectedIndexChanged(object sender, EventArgs e) {

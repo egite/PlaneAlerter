@@ -19,34 +19,23 @@ namespace PlaneAlerter.Forms {
 
 			//Initialise form components
 			InitializeComponent();
+			Theme.Apply(this);
+			Theme.MakePrimary(saveButton);
 
 			//Update form elements with current settings
-			receiverNameCheckBox.Checked = _settingsManagerService.EmailContentConfig.ReceiverName;
-			transponderTypeCheckBox.Checked = _settingsManagerService.EmailContentConfig.TransponderType;
-			radarLinkCheckBox.Checked = _settingsManagerService.EmailContentConfig.RadarLink;
-			afLookupCheckBox.Checked = _settingsManagerService.EmailContentConfig.AfLookup;
-			mapCheckBox.Checked = _settingsManagerService.EmailContentConfig.Map;
-			photosCheckBox.Checked = _settingsManagerService.EmailContentConfig.AircraftPhotos;
-			reportCheckBox.Checked = _settingsManagerService.EmailContentConfig.ReportLink;
-            twitterCheckBox.Checked = _settingsManagerService.EmailContentConfig.TwitterOptimised;
-			kmlCheckbox.Checked = _settingsManagerService.EmailContentConfig.KmlFile;
-            switch (_settingsManagerService.EmailContentConfig.PropertyList) {
-				case PropertyListType.All:
-					plAll.Checked = true;
-					plEssentials.Checked = false;
-					plHidden.Checked = false;
-					break;
-				case PropertyListType.Essentials:
-					plAll.Checked = false;
-					plEssentials.Checked = true;
-					plHidden.Checked = false;
-					break;
-				case PropertyListType.Hidden:
-					plAll.Checked = false;
-					plEssentials.Checked = false;
-					plHidden.Checked = true;
-					break;
-			}
+			var config = _settingsManagerService.EmailContentConfig;
+			receiverNameCheckBox.Checked = config.ReceiverName;
+			transponderTypeCheckBox.Checked = config.TransponderType;
+			radarLinkCheckBox.Checked = config.RadarLink;
+			afLookupCheckBox.Checked = config.AfLookup;
+			mapCheckBox.Checked = config.Map;
+			photosCheckBox.Checked = config.AircraftPhotos;
+			reportCheckBox.Checked = config.ReportLink;
+			kmlCheckbox.Checked = config.KmlFile;
+
+			plAll.Checked = config.PropertyList == PropertyListType.All;
+			plEssentials.Checked = config.PropertyList == PropertyListType.Essentials;
+			plHidden.Checked = config.PropertyList == PropertyListType.Hidden;
 		}
 
 		/// <summary>
@@ -75,20 +64,13 @@ namespace PlaneAlerter.Forms {
 				radarLinkCheckBox.Checked,
 				reportCheckBox.Checked,
 				receiverNameCheckBox.Checked,
-				transponderTypeCheckBox.Checked,
-				twitterCheckBox.Checked
+				transponderTypeCheckBox.Checked
 			);
+			_settingsManagerService.Save();
 
 			//Close form
+			DialogResult = DialogResult.OK;
 			Close();
 		}
-
-        /// <summary>
-        /// Twitter check box click
-        /// </summary>
-        private void twitterCheckBox_CheckedChanged(object sender, EventArgs e) {
-            checkBoxesPanel.Enabled = !twitterCheckBox.Checked;
-            propertyListGroupBox.Enabled = !twitterCheckBox.Checked;
-        }
-    }
+	}
 }

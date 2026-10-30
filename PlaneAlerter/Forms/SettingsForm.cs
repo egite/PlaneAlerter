@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Newtonsoft.Json;
 using PlaneAlerter.Models;
 using PlaneAlerter.Services;
 
@@ -21,6 +22,16 @@ namespace PlaneAlerter.Forms {
 		private static Dictionary<string, object[]> HostInfo { get; } = new();
 
 		/// <summary>
+		/// Serialised settings as they were when the form finished loading, used to detect unsaved changes
+		/// </summary>
+		private string? _loadedSnapshot;
+
+		/// <summary>
+		/// True once the user has clicked Save and the inputs validated
+		/// </summary>
+		private bool _saveRequested;
+
+		/// <summary>
 		/// Constructor
 		/// </summary>
 		public SettingsForm(ISettingsManagerService settingsManagerService, IVrsService vrsService) {
@@ -29,6 +40,8 @@ namespace PlaneAlerter.Forms {
 
 			//Initialise form elements
 			InitializeComponent();
+			Theme.Apply(this);
+			Theme.MakePrimary(saveSettingsButton);
 
 			//Add smtp host info
 			HostInfo.Clear();
@@ -54,37 +67,41 @@ namespace PlaneAlerter.Forms {
 			await UpdateReceivers();
 
 			//Set settings from current settings
-			senderEmailTextBox.Text = _settingsManagerService.Settings.SenderEmail;
-			aircraftListTextBox.Text = _settingsManagerService.Settings.AircraftListUrl;
-			radarURLTextBox.Text = _settingsManagerService.Settings.RadarUrl;
-			VRSUsrTextBox.Text = _settingsManagerService.Settings.VRSUser;
-			VRSPwdTextBox.Text = _settingsManagerService.Settings.VRSPassword;
-			latTextBox.Value = _settingsManagerService.Settings.Lat;
-			longTextBox.Value = _settingsManagerService.Settings.Long;
-			removalTimeoutTextBox.Value = _settingsManagerService.Settings.RemovalTimeout;
-			refreshTextBox.Value = _settingsManagerService.Settings.RefreshRate;
-			startOnStartCheckBox.Checked = _settingsManagerService.Settings.StartOnStart;
-			soundAlertsCheckBox.Checked = _settingsManagerService.Settings.SoundAlerts;
-			flashWindowCheckBox.Checked = _settingsManagerService.Settings.FlashWindow;
-			notificationsCheckBox.Checked = _settingsManagerService.Settings.ShowNotifications;
-			centreAircraftRadioButton.Checked = _settingsManagerService.Settings.CentreMapOnAircraft;
-			centreLatLngRadioButton.Checked = !_settingsManagerService.Settings.CentreMapOnAircraft;
-			smtpHostComboBox.Text = _settingsManagerService.Settings.SMTPHost;
-			smtpHostPortTextBox.Value = _settingsManagerService.Settings.SMTPPort;
-			smtpUsrTextBox.Text = _settingsManagerService.Settings.SMTPUser;
-			smtpPwdTextBox.Text = _settingsManagerService.Settings.SMTPPassword;
-			smtpSSLCheckBox.Checked = _settingsManagerService.Settings.SMTPSSL;
-			timeoutTextBox.Value = _settingsManagerService.Settings.Timeout;
-			filterDstCheckBox.Checked = _settingsManagerService.Settings.FilterDistance;
+			var settings = _settingsManagerService.Settings;
+			senderEmailTextBox.Text = settings.SenderEmail;
+			aircraftListTextBox.Text = settings.AircraftListUrl;
+			radarURLTextBox.Text = settings.RadarUrl;
+			VRSUsrTextBox.Text = settings.VRSUser;
+			VRSPwdTextBox.Text = settings.VRSPassword;
+			latTextBox.Value = settings.Lat;
+			longTextBox.Value = settings.Long;
+			removalTimeoutTextBox.Value = settings.RemovalTimeout;
+			refreshTextBox.Value = settings.RefreshRate;
+			startOnStartCheckBox.Checked = settings.StartOnStart;
+			soundAlertsCheckBox.Checked = settings.SoundAlerts;
+			flashWindowCheckBox.Checked = settings.FlashWindow;
+			notificationsCheckBox.Checked = settings.ShowNotifications;
+			centreAircraftRadioButton.Checked = settings.CentreMapOnAircraft;
+			centreLatLngRadioButton.Checked = !settings.CentreMapOnAircraft;
+			mapboxTokenTextBox.Text = settings.MapboxToken;
+			smtpHostComboBox.Text = settings.SMTPHost;
+			smtpHostPortTextBox.Value = settings.SMTPPort;
+			smtpUsrTextBox.Text = settings.SMTPUser;
+			smtpPwdTextBox.Text = settings.SMTPPassword;
+			smtpSSLCheckBox.Checked = settings.SMTPSSL;
+			timeoutTextBox.Value = settings.Timeout;
+			filterDstCheckBox.Checked = settings.FilterDistance;
 			filterDstCheckBox_CheckedChanged(this, EventArgs.Empty);
-			filterAltCheckBox.Checked = _settingsManagerService.Settings.FilterAltitude;
+			filterAltCheckBox.Checked = settings.FilterAltitude;
 			filterAltCheckBox_CheckedChanged(this, EventArgs.Empty);
-			ignoreModeSCheckBox.Checked = _settingsManagerService.Settings.IgnoreModeS;
-			ignoreDistTextBox.Value = Convert.ToDecimal(_settingsManagerService.Settings.IgnoreDistance);
-			ignoreAltTextBox.Value = _settingsManagerService.Settings.IgnoreAltitude;
-			if (filterReceiverCheckBox.Checked) filterReceiverCheckBox.Checked = _settingsManagerService.Settings.FilterReceiver; //Will be unchecked if there was an error getting receivers
+			ignoreModeSCheckBox.Checked = settings.IgnoreModeS;
+			ignoreDistTextBox.Value = Convert.ToDecimal(settings.IgnoreDistance);
+			ignoreAltTextBox.Value = settings.IgnoreAltitude;
+			if (filterReceiverCheckBox.Checked) filterReceiverCheckBox.Checked = settings.FilterReceiver; //Will be unchecked if there was an error getting receivers
 			filterReceiverCheckBox_CheckedChanged(this, EventArgs.Empty);
-			trailsAgeNumericUpDown.Value = _settingsManagerService.Settings.TrailsUpdateFrequency;
+			trailsAgeNumericUpDown.Value = settings.TrailsUpdateFrequency;
+
+			_loadedSnapshot = Snapshot();
 		}
 
 		private async Task UpdateReceivers() {
@@ -112,52 +129,10 @@ namespace PlaneAlerter.Forms {
 		}
 
 		/// <summary>
-		/// Smtp combobox value changed
+		/// Build a Settings object from the current form values
 		/// </summary>
-		/// <param name="sender">Sender</param>
-		/// <param name="e">Event Args</param>
-		private void smtpHostComboBox_SelectedValueChanged(object sender, EventArgs e)
-		{
-			//If exists in smtp host info, set port and ssl values
-			if (!HostInfo.ContainsKey(smtpHostComboBox.Text))
-				return;
-
-			smtpHostPortTextBox.Value = Convert.ToDecimal(HostInfo[smtpHostComboBox.Text][0]);
-			smtpSSLCheckBox.Checked = (bool)HostInfo[smtpHostComboBox.Text][1];
-		}
-
-		/// <summary>
-		/// Settings form closing
-		/// </summary>
-		/// <param name="sender">Sender</param>
-		/// <param name="e">Event Args</param>
-		private void SettingsForm_FormClosing(object sender, FormClosingEventArgs e) {
-			//Validate email address if one is provided
-			if (!string.IsNullOrWhiteSpace(senderEmailTextBox.Text)) {
-				try {
-					new System.Net.Mail.MailAddress(senderEmailTextBox.Text);
-				}
-				catch (FormatException) {
-					if (MessageBox.Show("The sender email address does not appear to be valid. Save anyway?",
-						"Invalid Email", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.No) {
-						e.Cancel = true;
-						return;
-					}
-				}
-			}
-
-			//Validate AircraftList.json URL
-			if (!string.IsNullOrWhiteSpace(aircraftListTextBox.Text) &&
-				!Uri.TryCreate(aircraftListTextBox.Text, UriKind.Absolute, out _)) {
-				if (MessageBox.Show("The AircraftList.json URL does not appear to be valid. Save anyway?",
-					"Invalid URL", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.No) {
-					e.Cancel = true;
-					return;
-				}
-			}
-
-			//Set settings to form element values
-			_settingsManagerService.Settings = new Settings(
+		private Settings BuildSettingsFromForm() {
+			return new Settings(
 				senderEmailTextBox.Text,
 				aircraftListTextBox.Text,
 				VRSUsrTextBox.Text,
@@ -186,9 +161,90 @@ namespace PlaneAlerter.Forms {
 				smtpUsrTextBox.Text,
 				smtpPwdTextBox.Text,
 				smtpSSLCheckBox.Checked,
-				_settingsManagerService.Settings.TwitterUsers);
-			
-			_settingsManagerService.Save();
+				mapboxTokenTextBox.Text.Trim());
+		}
+
+		/// <summary>
+		/// Serialise the form values so they can be compared for changes
+		/// </summary>
+		private string Snapshot() {
+			return JsonConvert.SerializeObject(BuildSettingsFromForm());
+		}
+
+		/// <summary>
+		/// Check the inputs, asking the user whether to continue when something looks wrong
+		/// </summary>
+		/// <returns>True if saving should go ahead</returns>
+		private bool ValidateInputs() {
+			//Validate email address if one is provided
+			if (!string.IsNullOrWhiteSpace(senderEmailTextBox.Text)) {
+				try {
+					new System.Net.Mail.MailAddress(senderEmailTextBox.Text);
+				}
+				catch (FormatException) {
+					if (MessageBox.Show("The sender email address does not appear to be valid. Save anyway?",
+						"Invalid Email", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.No)
+						return false;
+				}
+			}
+
+			//Validate AircraftList.json URL
+			if (!string.IsNullOrWhiteSpace(aircraftListTextBox.Text) &&
+				!Uri.TryCreate(aircraftListTextBox.Text, UriKind.Absolute, out _)) {
+				if (MessageBox.Show("The AircraftList.json URL does not appear to be valid. Save anyway?",
+					"Invalid URL", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.No)
+					return false;
+			}
+
+			//Mapbox public tokens start with pk.
+			var token = mapboxTokenTextBox.Text.Trim();
+			if (!string.IsNullOrEmpty(token) && !token.StartsWith("pk.", StringComparison.Ordinal)) {
+				if (MessageBox.Show("The Mapbox access token does not look like a public token (they start with \"pk.\"). Save anyway?",
+					"Unexpected Mapbox Token", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.No)
+					return false;
+			}
+
+			return true;
+		}
+
+		/// <summary>
+		/// Smtp combobox value changed
+		/// </summary>
+		/// <param name="sender">Sender</param>
+		/// <param name="e">Event Args</param>
+		private void smtpHostComboBox_SelectedValueChanged(object sender, EventArgs e)
+		{
+			//If exists in smtp host info, set port and ssl values
+			if (!HostInfo.ContainsKey(smtpHostComboBox.Text))
+				return;
+
+			smtpHostPortTextBox.Value = Convert.ToDecimal(HostInfo[smtpHostComboBox.Text][0]);
+			smtpSSLCheckBox.Checked = (bool)HostInfo[smtpHostComboBox.Text][1];
+		}
+
+		/// <summary>
+		/// Settings form closing: persist on Save, otherwise confirm discarding any changes
+		/// </summary>
+		/// <param name="sender">Sender</param>
+		/// <param name="e">Event Args</param>
+		private void SettingsForm_FormClosing(object sender, FormClosingEventArgs e) {
+			if (_saveRequested) {
+				_settingsManagerService.Settings = BuildSettingsFromForm();
+				_settingsManagerService.Save();
+				DialogResult = DialogResult.OK;
+				return;
+			}
+
+			//Closing without saving: warn if anything changed since load
+			if (_loadedSnapshot != null && Snapshot() != _loadedSnapshot) {
+				if (MessageBox.Show("Discard your unsaved changes to settings?", "Unsaved Changes",
+					MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.No) {
+					e.Cancel = true;
+					return;
+				}
+			}
+
+			DialogResult = DialogResult.Cancel;
 		}
 
 		/// <summary>
@@ -197,7 +253,17 @@ namespace PlaneAlerter.Forms {
 		/// <param name="sender">Sender</param>
 		/// <param name="e">Event Args</param>
 		private void saveSettingsButton_Click(object sender, EventArgs e) {
-			//Close form
+			if (!ValidateInputs())
+				return;
+
+			_saveRequested = true;
+			Close();
+		}
+
+		/// <summary>
+		/// Cancel button click
+		/// </summary>
+		private void cancelButton_Click(object sender, EventArgs e) {
 			Close();
 		}
 
@@ -208,8 +274,8 @@ namespace PlaneAlerter.Forms {
 		/// <param name="e">Event Args</param>
 		private void gmailLink_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
 		{
-			//Open gmail link
-			Process.Start(new ProcessStartInfo("https://www.google.com/settings/security/lesssecureapps")
+			//Open Google app passwords page
+			Process.Start(new ProcessStartInfo("https://myaccount.google.com/apppasswords")
 			{
 				UseShellExecute = true
 			});

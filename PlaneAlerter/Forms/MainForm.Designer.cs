@@ -51,9 +51,6 @@
 			this.optionsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
 			this.startConditionEditorToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
 			this.settingsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-			this.twitterToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-			this.addAccountToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-			this.removeAccountToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
 			this.emailContentConfigToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
 			this.showLogFileToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
 			this.startToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -151,7 +148,6 @@
 			this.optionsToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.startConditionEditorToolStripMenuItem,
             this.settingsToolStripMenuItem,
-            this.twitterToolStripMenuItem,
             this.emailContentConfigToolStripMenuItem,
             this.showLogFileToolStripMenuItem});
 			this.optionsToolStripMenuItem.Name = "optionsToolStripMenuItem";
@@ -171,28 +167,6 @@
 			this.settingsToolStripMenuItem.Size = new System.Drawing.Size(206, 22);
 			this.settingsToolStripMenuItem.Text = "Settings";
 			this.settingsToolStripMenuItem.Click += new System.EventHandler(this.settingsToolStripMenuItem_Click);
-			// 
-			// twitterToolStripMenuItem
-			// 
-			this.twitterToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.addAccountToolStripMenuItem,
-            this.removeAccountToolStripMenuItem});
-			this.twitterToolStripMenuItem.Name = "twitterToolStripMenuItem";
-			this.twitterToolStripMenuItem.Size = new System.Drawing.Size(206, 22);
-			this.twitterToolStripMenuItem.Text = "Twitter";
-			// 
-			// addAccountToolStripMenuItem
-			// 
-			this.addAccountToolStripMenuItem.Name = "addAccountToolStripMenuItem";
-			this.addAccountToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
-			this.addAccountToolStripMenuItem.Text = "Add Account";
-			this.addAccountToolStripMenuItem.Click += new System.EventHandler(this.addAccountToolStripMenuItem_Click);
-			// 
-			// removeAccountToolStripMenuItem
-			// 
-			this.removeAccountToolStripMenuItem.Name = "removeAccountToolStripMenuItem";
-			this.removeAccountToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
-			this.removeAccountToolStripMenuItem.Text = "Remove Account";
 			// 
 			// emailContentConfigToolStripMenuItem
 			// 
@@ -448,9 +422,6 @@
 		private System.Windows.Forms.ToolStripStatusLabel statusLabel;
 		private System.Windows.Forms.NotifyIcon notifyIcon;
 		private System.Windows.Forms.ToolStripMenuItem restartToolStripMenuItem;
-		private System.Windows.Forms.ToolStripMenuItem twitterToolStripMenuItem;
-		private System.Windows.Forms.ToolStripMenuItem removeAccountToolStripMenuItem;
-		private System.Windows.Forms.ToolStripMenuItem addAccountToolStripMenuItem;
 		private System.Windows.Forms.SplitContainer splitContainer1;
 		private System.Windows.Forms.SplitContainer splitContainer2;
 		private System.Windows.Forms.DataGridView activeMatchesDataGridView;

@@ -5,6 +5,7 @@ namespace PlaneAlerter.Forms {
 		public PropertyInfoForm() {
 			//Initialise form elements
 			InitializeComponent();
+			Theme.Apply(this);
 
 			//Add vrs property info to form
 			foreach (var property in VrsProperties.VrsPropertyData.Keys) {

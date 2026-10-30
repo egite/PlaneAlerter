@@ -41,10 +41,7 @@ namespace PlaneAlerter.Services {
 		private readonly IVrsService _vrsService;
 		private readonly IEmailService _emailService;
 		private readonly IEmailBuilderService _emailBuilderService;
-		private readonly ITwitterService _twitterService;
-		private readonly IUrlBuilderService _urlBuilderService;
 		private readonly IStatsService _statsService;
-		private readonly IStringFormatterService _stringFormatterService;
 		private readonly ILoggerWithQueue _logger;
 
 		/// <summary>
@@ -61,18 +58,15 @@ namespace PlaneAlerter.Services {
 		/// Constructor
 		/// </summary>
 		public CheckerService(ISettingsManagerService settingsManagerService, IConditionManagerService conditionManagerService,
-			IVrsService vrsService, IEmailService emailService, IEmailBuilderService emailBuilderService, ITwitterService twitterService,
-			IUrlBuilderService urlBuilderService, IStatsService statsService, IStringFormatterService stringFormatterService, ILoggerWithQueue logger)
+			IVrsService vrsService, IEmailService emailService, IEmailBuilderService emailBuilderService,
+			IStatsService statsService, ILoggerWithQueue logger)
 		{
 			_settingsManagerService = settingsManagerService;
 			_conditionManagerService = conditionManagerService;
 			_vrsService = vrsService;
 			_emailService = emailService;
 			_emailBuilderService = emailBuilderService;
-			_twitterService = twitterService;
-			_urlBuilderService = urlBuilderService;
 			_statsService = statsService;
-			_stringFormatterService = stringFormatterService;
 			_logger = logger;
 		}
 
@@ -391,59 +385,6 @@ namespace PlaneAlerter.Services {
 					
 					_logger.LogWithTimeAndAircraft(aircraft, "SENT", email.Subject, Color.LightBlue);
 				}
-			}
-			
-			if (condition.TwitterEnabled) {
-				var content = isFirst?condition.TweetFirstFormat:condition.TweetLastFormat;
-
-				//Check if selected account is valid
-				if (string.IsNullOrWhiteSpace(condition.TwitterAccount)) {
-					_logger.Log("ERROR: Please select Twitter account in condition editor", Color.Red);
-					return;
-				}
-				if (!_settingsManagerService.Settings.TwitterUsers.ContainsKey(condition.TwitterAccount)) {
-					_logger.Log("ERROR: Selected Twitter account (" + condition.TwitterAccount + ") has not been authenticated", Color.Red);
-					return;
-				}
-				if (string.IsNullOrEmpty(content)) {
-					_logger.Log("ERROR: Tweet content can't be empty. Tweet content can be configured in the condition editor.", Color.Red);
-					return;
-				}
-
-				//Get credentials
-				var credentials = _settingsManagerService.Settings.TwitterUsers[condition.TwitterAccount];
-
-				//Replace keywords in content
-				content = _stringFormatterService.Format(content, aircraft, condition);
-				if (content.Length > 250) {
-					var charsOver = content.Length - 250;
-					content = content.Substring(0, 250) + "...";
-					_logger.Log("WARNING: Tweet content is " + charsOver + " characters over the limit of 280, removing end of message", Color.Orange);
-				}
-					
-				//Add link to tweet
-				switch (condition.TweetLink) {
-					case TweetLink.None:
-						break;
-					case TweetLink.Radar_link:
-						content += " " + _settingsManagerService.Settings.RadarUrl;
-						break;
-					case TweetLink.Radar_link_with_aircraft_selected:
-						if (isFirst) content += " " + _settingsManagerService.Settings.RadarUrl + "?icao=" + aircraft.Icao;
-						break;
-					case TweetLink.Report_link:
-						content += " " + _urlBuilderService.GenerateReportUrl(aircraft.Icao, true);
-						break;
-				}
-
-				//Get map URL if enabled
-				var mapUrl = condition.TweetMap ? _urlBuilderService.GenerateMapboxStaticMapUrl(aircraft) : "";
-
-				//Send tweet
-				var success = await _twitterService.Tweet(credentials[0], credentials[1], content, mapUrl);
-				
-				if (success)
-					_logger.LogWithTimeAndAircraft(aircraft, "TWEET", condition.Name, Color.LightBlue);
 			}
 
 			//Increase sent alerts for condition and update stats

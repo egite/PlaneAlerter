@@ -26,7 +26,12 @@ namespace PlaneAlerter.Services
 		private readonly ISettingsManagerService _settingsManagerService;
 		private readonly ILoggerWithQueue _logger;
 		
-		private const string MapboxAccessToken = "pk.eyJ1IjoiZG9tMjM2NCIsImEiOiJjbTllNHMwdzAxOGI4MmtvZTZhMGpmMnp2In0.jmjmGSwa0p9bM4YCG_xewQ";
+		/// <summary>
+		/// Token belonging to the upstream PlaneAlerter author, used only when the user has not set their own
+		/// </summary>
+		private const string FallbackMapboxAccessToken = "pk.eyJ1IjoiZG9tMjM2NCIsImEiOiJjbTllNHMwdzAxOGI4MmtvZTZhMGpmMnp2In0.jmjmGSwa0p9bM4YCG_xewQ";
+
+		private bool _warnedAboutFallbackToken;
 
 		public UrlBuilderService(ISettingsManagerService settingsManagerService, ILoggerWithQueue logger)
 		{
@@ -61,8 +66,27 @@ namespace PlaneAlerter.Services
 			return reportUrl;
 		}
 
+		/// <summary>
+		/// Get the Mapbox token from settings, falling back to the built-in token with a one-time warning
+		/// </summary>
+		private string GetMapboxAccessToken()
+		{
+			var token = _settingsManagerService.Settings.MapboxToken;
+			if (!string.IsNullOrWhiteSpace(token))
+				return token.Trim();
+
+			if (!_warnedAboutFallbackToken)
+			{
+				_logger.Log("WARNING: No Mapbox access token set in Settings > Maps. Using the built-in token, which may stop working at any time. Free tokens: https://account.mapbox.com/", Color.Orange);
+				_warnedAboutFallbackToken = true;
+			}
+
+			return FallbackMapboxAccessToken;
+		}
+
 		public string GenerateMapboxStaticMapUrl(Aircraft aircraft)
 		{
+			var accessToken = GetMapboxAccessToken();
 			var aircraftLat = aircraft.GetProperty("Lat");
 			var aircraftLong = aircraft.GetProperty("Long");
             
@@ -116,7 +140,7 @@ namespace PlaneAlerter.Services
 				while (true)
 				{
 					encodedPolyline = WebUtility.UrlEncode(GooglePolylineEncodingHelper.Encode(trailPoints));
-					var estimatedUrlLength = $"https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/pin-s+555555({aircraftLong},{aircraftLat}),path({encodedPolyline})/{bounds}/800x800?access_token={MapboxAccessToken}&padding=100".Length;
+					var estimatedUrlLength = $"https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/pin-s+555555({aircraftLong},{aircraftLat}),path({encodedPolyline})/{bounds}/800x800?access_token={accessToken}&padding=100".Length;
 
 					if (estimatedUrlLength <= maxUrlLength || trailPoints.Count <= 2)
 						break;
@@ -130,7 +154,7 @@ namespace PlaneAlerter.Services
 				overlays.Add($"path({encodedPolyline})");
 			}
             
-			var staticMapUrl = $"https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/{string.Join(',', overlays)}/{bounds}/800x800?access_token={MapboxAccessToken}";
+			var staticMapUrl = $"https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/{string.Join(',', overlays)}/{bounds}/800x800?access_token={accessToken}";
 
 			if (bounds == "auto")
 				staticMapUrl += "&padding=100";

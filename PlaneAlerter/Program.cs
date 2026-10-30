@@ -46,7 +46,6 @@ namespace PlaneAlerter {
 					services.AddTransient<ConditionEditorForm>();
 					services.AddTransient<ConditionListForm>();
 					services.AddTransient<EmailContentConfigForm>();
-					services.AddTransient<PinPromptDialog>();
 					services.AddTransient<PropertyInfoForm>();
 					services.AddTransient<SettingsForm>();
 
@@ -55,7 +54,6 @@ namespace PlaneAlerter {
 					services.AddSingleton<IConditionManagerService, ConditionManagerService>();
 					services.AddSingleton<IVrsService, VrsService>();
 					services.AddSingleton<ICheckerService, CheckerService>();
-					services.AddSingleton<ITwitterService, TwitterService>();
 					services.AddSingleton<IEmailService, EmailService>();
 					services.AddSingleton<IEmailBuilderService, EmailBuilderService>();
 					services.AddSingleton<IUrlBuilderService, UrlBuilderService>();
@@ -74,7 +72,6 @@ namespace PlaneAlerter {
 					{
 						AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
 					});
-					services.AddHttpClient<TwitterService>();
 				});
 		}
 	}

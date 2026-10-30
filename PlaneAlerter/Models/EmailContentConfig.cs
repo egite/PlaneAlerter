@@ -16,8 +16,7 @@ namespace PlaneAlerter.Models
 			bool radarLink,
 			bool reportLink,
 			bool receiverName,
-			bool transponderType,
-			bool twitterOptimised)
+			bool transponderType)
 		{
 			AfLookup = afLookup;
 			AircraftPhotos = aircraftPhotos;
@@ -28,7 +27,6 @@ namespace PlaneAlerter.Models
 			ReportLink = reportLink;
 			ReceiverName = receiverName;
 			TransponderType = transponderType;
-			TwitterOptimised = twitterOptimised;
 		}
 
 		public bool ReceiverName { get; }
@@ -38,7 +36,6 @@ namespace PlaneAlerter.Models
 		public bool AfLookup { get; }
 		public bool AircraftPhotos { get; }
 		public bool Map { get; }
-		public bool TwitterOptimised { get; }
 		public bool KmlFile { get; }
 		public PropertyListType PropertyList { get; }
 	}

@@ -78,7 +78,7 @@ namespace PlaneAlerter.Services {
 				{ "SMTPUsr", Settings.SMTPUser },
 				{ "SMTPPwd", Settings.SMTPPassword },
 				{ "SMTPSSL", Settings.SMTPSSL },
-				{ "TwitterUsers", Settings.TwitterUsers }
+				{ "mapboxToken", Settings.MapboxToken }
 			};
 		}
 
@@ -96,7 +96,6 @@ namespace PlaneAlerter.Services {
 				{ "AfLookup", EmailContentConfig.AfLookup },
 				{ "AircraftPhotos", EmailContentConfig.AircraftPhotos },
 				{ "Map", EmailContentConfig.Map },
-				{ "TwitterOptimised", EmailContentConfig.TwitterOptimised },
 				{ "PropertyList", EmailContentConfig.PropertyList.ToString() },
 				{ "KMLfile", EmailContentConfig.KmlFile }
 			};
@@ -116,8 +115,7 @@ namespace PlaneAlerter.Services {
 		        radarLink: true,
 		        reportLink: true,
 		        receiverName: true,
-		        transponderType: true,
-		        twitterOptimised: false);
+		        transponderType: true);
             
             File.WriteAllText("emailconfig.json", JsonConvert.SerializeObject(GetECCDictionary(), Formatting.Indented));
         }
@@ -203,7 +201,7 @@ namespace PlaneAlerter.Services {
 					settingsJson.OptionalValue<string>("SMTPUsr") ?? "",
 					settingsJson.OptionalValue<string>("SMTPPwd") ?? "",
 					settingsJson.OptionalValueStruct<bool>("SMTPSSL") ?? true,
-					settingsJson.OptionalValue<Dictionary<string, string[]>>("TwitterUsers") ?? new Dictionary<string, string[]>());
+					settingsJson.OptionalValue<string>("mapboxToken") ?? "");
 			}
 			catch (Exception e)
 			{
@@ -266,8 +264,7 @@ namespace PlaneAlerter.Services {
 					eccJson.RequiredValueStruct<bool>("RadarLink"),
 					eccJson.RequiredValueStruct<bool>("ReportLink"),
 					eccJson.RequiredValueStruct<bool>("ReceiverName"),
-					eccJson.RequiredValueStruct<bool>("TransponderType"),
-					eccJson.RequiredValueStruct<bool>("TwitterOptimised")
+					eccJson.RequiredValueStruct<bool>("TransponderType")
 				);
 			}
 			catch (Exception e)

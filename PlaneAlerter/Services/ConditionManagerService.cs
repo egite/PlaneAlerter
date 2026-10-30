@@ -112,13 +112,7 @@ namespace PlaneAlerter.Services
 						condition.OptionalValueStruct<bool>("emailEnabled", "EmailEnabled") ?? true,
 						condition.OptionalValue<string>("emailFirstFormat", "EmailFirstFormat") ?? string.Empty,
 						condition.OptionalValue<string>("emailLastFormat", "EmailLastFormat") ?? string.Empty,
-						condition.RequiredValue<List<string>>("recieverEmails", "RecieverEmails", "ReceiverEmails"),
-						condition.OptionalValueStruct<bool>("twitterEnabled", "TwitterEnabled") ?? true,
-						condition.OptionalValue<string>("twitterAccount", "TwitterAccount") ?? string.Empty,
-						condition.OptionalValue<string>("tweetFirstFormat", "TweetFirstFormat") ?? string.Empty,
-						condition.OptionalValue<string>("tweetLastFormat", "TweetLastFormat") ?? string.Empty,
-						condition.OptionalValueStruct<bool>("tweetMap", "TweetMap") ?? true,
-						condition.OptionalValueStruct<TweetLink>("tweetLink", "TweetLink") ?? TweetLink.None)
+						condition.RequiredValue<List<string>>("recieverEmails", "RecieverEmails", "ReceiverEmails"))
 					{
 						Triggers = condition.RequiredValue<Dictionary<int, Trigger>>("triggers", "Triggers")
 					};

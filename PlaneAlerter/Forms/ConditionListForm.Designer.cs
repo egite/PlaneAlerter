@@ -132,6 +132,7 @@
 			this.MinimumSize = new System.Drawing.Size(464, 153);
 			this.Name = "ConditionEditor";
 			this.Text = "PlaneAlerter Condition Editor";
+			this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.ConditionListForm_FormClosing);
 			this.ResumeLayout(false);
 
 		}

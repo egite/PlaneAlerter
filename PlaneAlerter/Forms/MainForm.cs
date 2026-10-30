@@ -29,11 +29,16 @@ namespace PlaneAlerter.Forms
 	{
 		private readonly ISettingsManagerService _settingsManagerService;
 		private readonly IConditionManagerService _conditionManagerService;
-		private readonly ITwitterService _twitterService;
 		private readonly IStatsService _statsService;
 		private readonly IThreadManagerService _threadManagerService;
 		private readonly ICheckerService _checkerService;
 		private readonly ILoggerWithQueue _logger;
+
+		/// <summary>
+		/// Maximum lines kept in the console before the oldest are trimmed
+		/// </summary>
+		private const int MaxConsoleLines = 4000;
+		private int _consoleLineCount;
 
 		/// <summary>
 		/// Send message to windows
@@ -101,11 +106,10 @@ namespace PlaneAlerter.Forms
 		/// Constructor
 		/// </summary>
 		public MainForm(ISettingsManagerService settingsManagerService, IConditionManagerService conditionManagerService,
-			ITwitterService twitterService, IStatsService statsService, IThreadManagerService threadManagerService,
+			IStatsService statsService, IThreadManagerService threadManagerService,
 			ICheckerService checkerService, ILoggerWithQueue logger) {
 			_settingsManagerService = settingsManagerService;
 			_conditionManagerService = conditionManagerService;
-			_twitterService = twitterService;
 			_statsService = statsService;
 			_threadManagerService = threadManagerService;
 			_checkerService = checkerService;
@@ -120,9 +124,9 @@ namespace PlaneAlerter.Forms
 
 			//Initialise UI components
 			InitializeComponent();
+			Theme.Apply(this);
 
 			_logger.NewLogMessage += NewLogMessageHandler;
-			_twitterService.AccountsUpdated += (_, _) => UpdateTwitterAccounts();
 			_checkerService.StatusChanged += (_, status) => UpdateStatusLabel(status);
 			_threadManagerService.StatusChanged += ThreadManagerServiceOnStatusChanged;
 			_checkerService.SendingAlert += CheckerServiceOnSendingAlert;
@@ -138,7 +142,6 @@ namespace PlaneAlerter.Forms
 					_threadManagerService.Start();
 
 				UpdateSettings();
-				UpdateTwitterAccounts();
 				UpdateStats();
 				UpdateConditionList();
 				conditionTreeView.Nodes[0].Expand();
@@ -202,9 +205,20 @@ namespace PlaneAlerter.Forms
 			try {
 				foreach (var message in messages)
 				{
-					console.Select(console.Text.Length, 0);
-					if (message.Color.HasValue)
-						console.SelectionBackColor = message.Color.Value;
+					//Keep the console from growing without bound
+					if (++_consoleLineCount > MaxConsoleLines)
+					{
+						var trimTo = console.GetFirstCharIndexFromLine(MaxConsoleLines / 4);
+						if (trimTo > 0)
+						{
+							console.Select(0, trimTo);
+							console.SelectedText = "";
+							_consoleLineCount -= MaxConsoleLines / 4;
+						}
+					}
+
+					console.Select(console.TextLength, 0);
+					console.SelectionColor = Theme.LogColor(message.Color);
 					console.AppendText(message.Message + Environment.NewLine);
 				}
 			}
@@ -225,8 +239,6 @@ namespace PlaneAlerter.Forms
 				conditionNode.Nodes.Add("Id: " + conditionId);
 				conditionNode.Nodes.Add("Alert Type: " + c.AlertType.ToString().Replace("_", " "));
 				conditionNode.Nodes.Add("Email Enabled: " + c.EmailEnabled);
-				conditionNode.Nodes.Add("Twitter Enabled: " + c.TwitterEnabled);
-				conditionNode.Nodes.Add("Twitter Account: " + c.TwitterAccount);
 				conditionNode.Nodes.Add("Alerts Sent: " + c.AlertsThisSession.ToString());
 
 				var triggersNode = conditionNode.Nodes.Add("Condition Triggers");
@@ -290,7 +302,7 @@ namespace PlaneAlerter.Forms
 					foreach (TreeNode conditionNode in conditionTreeView.Nodes[0].Nodes)
 					{
 						var conditionId = Convert.ToInt32(conditionNode.Tag.ToString());
-						conditionNode.Nodes[5].Text = "Alerts Sent: " +
+						conditionNode.Nodes[3].Text = "Alerts Sent: " +
 						                              _conditionManagerService.Conditions[conditionId]
 							                              .AlertsThisSession;
 					}
@@ -313,26 +325,6 @@ namespace PlaneAlerter.Forms
 
 				}
 			});
-		}
-
-		/// <summary>
-		/// Update the remove twitter account menu options
-		/// </summary>
-		private void UpdateTwitterAccounts() {
-			removeAccountToolStripMenuItem.DropDownItems.Clear();
-			removeAccountToolStripMenuItem.Enabled = _settingsManagerService.Settings.TwitterUsers.Count > 0;
-
-			foreach (var screenName in _settingsManagerService.Settings.TwitterUsers.Keys) {
-				var item = removeAccountToolStripMenuItem.DropDownItems.Add(screenName);
-				item.Click += (sender, _) =>
-				{
-					if (sender == null)
-						return;
-
-					var clickedItem = (ToolStripItem)sender;
-					_twitterService.RemoveAccount(clickedItem.Text);
-				};
-			}
 		}
 
 		/// <summary>
@@ -414,6 +406,7 @@ namespace PlaneAlerter.Forms
 		private void clearConsoleToolStripMenuItem_Click(object sender, EventArgs e) {
 			//Set text to nothing
 			console.Text = "";
+			_consoleLineCount = 0;
 		}
 
 		/// <summary>
@@ -424,7 +417,8 @@ namespace PlaneAlerter.Forms
 		private void settingsToolStripMenuItem_Click(object sender, EventArgs e) {
 			//Show settings form then update settings
 			var settingsForm = Program.ServiceProvider.GetRequiredService<SettingsForm>();
-			settingsForm.ShowDialog();
+			if (settingsForm.ShowDialog() != DialogResult.OK)
+				return;
 
 			_logger.Log("Reloading Settings...", Color.White);
 
@@ -476,10 +470,6 @@ namespace PlaneAlerter.Forms
 			{
 				UseShellExecute = true
 			});
-		}
-
-		private async void addAccountToolStripMenuItem_Click(object sender, EventArgs e) {
-			await _twitterService.AddAccount();
 		}
 
 		private void startToolStripMenuItem_Click(object sender, EventArgs e) {

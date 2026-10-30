@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-
-namespace PlaneAlerter.Models
+﻿namespace PlaneAlerter.Models
 {
 	internal class Settings
 	{
@@ -151,9 +149,9 @@ namespace PlaneAlerter.Models
 		public bool SMTPSSL { get; set; }
 
 		/// <summary>
-		/// List of Twitter user credentials
+		/// Mapbox access token used for static maps in emails (empty = use built-in fallback)
 		/// </summary>
-		public Dictionary<string, string[]> TwitterUsers { get; set; }
+		public string MapboxToken { get; set; }
 
 		public Settings(
 			string senderEmail,
@@ -184,7 +182,7 @@ namespace PlaneAlerter.Models
 			string smtpUser,
 			string smtpPassword,
 			bool smtpSSL,
-			Dictionary<string, string[]> twitterUsers)
+			string mapboxToken)
 		{
 			SenderEmail = senderEmail;
 			AircraftListUrl = aircraftListUrl;
@@ -214,7 +212,7 @@ namespace PlaneAlerter.Models
 			SMTPUser = smtpUser;
 			SMTPPassword = smtpPassword;
 			SMTPSSL = smtpSSL;
-			TwitterUsers = twitterUsers;
+			MapboxToken = mapboxToken;
 		}
 	}
 }

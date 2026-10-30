@@ -37,7 +37,6 @@
 			this.mapCheckBox = new System.Windows.Forms.CheckBox();
 			this.saveButton = new System.Windows.Forms.Button();
 			this.reportCheckBox = new System.Windows.Forms.CheckBox();
-			this.twitterCheckBox = new System.Windows.Forms.CheckBox();
 			this.checkBoxesPanel = new System.Windows.Forms.Panel();
 			this.kmlCheckbox = new System.Windows.Forms.CheckBox();
 			this.toolTip1 = new System.Windows.Forms.ToolTip(this.components);
@@ -83,11 +82,11 @@
 			this.propertyListGroupBox.Controls.Add(this.plAll);
 			this.propertyListGroupBox.Controls.Add(this.plEssentials);
 			this.propertyListGroupBox.Controls.Add(this.plHidden);
-			this.propertyListGroupBox.Location = new System.Drawing.Point(172, 39);
+			this.propertyListGroupBox.Location = new System.Drawing.Point(172, 10);
 			this.propertyListGroupBox.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
 			this.propertyListGroupBox.Name = "propertyListGroupBox";
 			this.propertyListGroupBox.Padding = new System.Windows.Forms.Padding(4, 3, 4, 3);
-			this.propertyListGroupBox.Size = new System.Drawing.Size(160, 108);
+			this.propertyListGroupBox.Size = new System.Drawing.Size(160, 110);
 			this.propertyListGroupBox.TabIndex = 3;
 			this.propertyListGroupBox.TabStop = false;
 			this.propertyListGroupBox.Text = "Property List";
@@ -163,7 +162,7 @@
 			// saveButton
 			// 
 			this.saveButton.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
-			this.saveButton.Location = new System.Drawing.Point(174, 196);
+			this.saveButton.Location = new System.Drawing.Point(172, 196);
 			this.saveButton.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
 			this.saveButton.Name = "saveButton";
 			this.saveButton.Size = new System.Drawing.Size(160, 27);
@@ -182,19 +181,6 @@
 			this.reportCheckBox.TabIndex = 9;
 			this.reportCheckBox.Text = "Report Link";
 			this.reportCheckBox.UseVisualStyleBackColor = true;
-			// 
-			// twitterCheckBox
-			// 
-			this.twitterCheckBox.AutoSize = true;
-			this.twitterCheckBox.Location = new System.Drawing.Point(172, 14);
-			this.twitterCheckBox.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
-			this.twitterCheckBox.Name = "twitterCheckBox";
-			this.twitterCheckBox.Size = new System.Drawing.Size(119, 19);
-			this.twitterCheckBox.TabIndex = 10;
-			this.twitterCheckBox.Text = "Twitter Optimised";
-			this.toolTip1.SetToolTip(this.twitterCheckBox, "A short single-line message for use in services that foward emails to tweets");
-			this.twitterCheckBox.UseVisualStyleBackColor = true;
-			this.twitterCheckBox.CheckedChanged += new System.EventHandler(this.twitterCheckBox_CheckedChanged);
 			// 
 			// checkBoxesPanel
 			// 
@@ -229,7 +215,6 @@
 			this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
 			this.ClientSize = new System.Drawing.Size(343, 232);
 			this.Controls.Add(this.checkBoxesPanel);
-			this.Controls.Add(this.twitterCheckBox);
 			this.Controls.Add(this.saveButton);
 			this.Controls.Add(this.propertyListGroupBox);
 			this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;
@@ -261,7 +246,6 @@
 		private System.Windows.Forms.CheckBox mapCheckBox;
 		private System.Windows.Forms.Button saveButton;
 		private System.Windows.Forms.CheckBox reportCheckBox;
-        private System.Windows.Forms.CheckBox twitterCheckBox;
         private System.Windows.Forms.Panel checkBoxesPanel;
         private System.Windows.Forms.CheckBox kmlCheckbox;
 		private System.Windows.Forms.ToolTip toolTip1;
