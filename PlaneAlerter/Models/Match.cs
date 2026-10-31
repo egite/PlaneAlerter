@@ -39,6 +39,11 @@ namespace PlaneAlerter.Models
 		public Aircraft AircraftInfo { get; set; }
 
 		/// <summary>
+		/// When the aircraft first matched a condition
+		/// </summary>
+		public DateTime MatchedTime { get; } = DateTime.Now;
+
+		/// <summary>
 		/// Add a condition to the match
 		/// </summary>
 		/// <param name="id">ID of condition</param>

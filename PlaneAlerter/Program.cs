@@ -44,7 +44,6 @@ namespace PlaneAlerter {
 					//Forms
 					services.AddTransient<MainForm>();
 					services.AddTransient<ConditionEditorForm>();
-					services.AddTransient<ConditionListForm>();
 					services.AddTransient<EmailContentConfigForm>();
 					services.AddTransient<PropertyInfoForm>();
 					services.AddTransient<SettingsForm>();

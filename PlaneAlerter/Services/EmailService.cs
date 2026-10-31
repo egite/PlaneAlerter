@@ -13,6 +13,12 @@ namespace PlaneAlerter.Services {
 		/// <param name="message">Message to send</param>
 		/// <param name="emailAddress">Email address to send to</param>
 		Task SendEmail(MailMessage message, string emailAddress);
+
+		/// <summary>
+		/// Send a short test message using the supplied (possibly unsaved) settings
+		/// </summary>
+		/// <returns>Null on success, otherwise the error text</returns>
+		Task<string?> SendTestEmail(Models.Settings settings, string toAddress);
 	}
 
 	/// <summary>
@@ -34,6 +40,38 @@ namespace PlaneAlerter.Services {
 		/// </summary>
 		/// <param name="message">Message to send</param>
 		/// <param name="emailAddress">Email address to send to</param>
+		public async Task<string?> SendTestEmail(Models.Settings settings, string toAddress)
+		{
+			try
+			{
+				using var message = new MailMessage
+				{
+					From = new MailAddress(settings.SenderEmail, "PlaneAlerter Alerts"),
+					Subject = "PlaneAlerter test email",
+					IsBodyHtml = true,
+					Body = "<div style='font-family:Segoe UI,Arial,sans-serif;'><h2 style='color:#1B3A5C;margin:0 0 8px;'>PlaneAlerter</h2>" +
+					       "<p>This is a test message. Your SMTP settings are working.</p>" +
+					       $"<p style='color:#5B6B7B;font-size:12px;'>Sent {DateTime.Now:yyyy-MM-dd HH:mm:ss} via {settings.SMTPHost}:{settings.SMTPPort}</p></div>"
+				};
+				message.To.Add(toAddress);
+
+				using var mailClient = new SmtpClient(settings.SMTPHost)
+				{
+					Port = settings.SMTPPort,
+					Credentials = new NetworkCredential(settings.SMTPUser, settings.SMTPPassword),
+					EnableSsl = settings.SMTPSSL,
+					Timeout = 20000
+				};
+
+				await mailClient.SendMailAsync(message);
+				return null;
+			}
+			catch (Exception e)
+			{
+				return e.InnerException != null ? $"{e.Message} ({e.InnerException.Message})" : e.Message;
+			}
+		}
+
 		public async Task SendEmail(MailMessage message, string emailAddress) {
             using var mailClient = new SmtpClient(_settingsManagerService.Settings.SMTPHost)
             {

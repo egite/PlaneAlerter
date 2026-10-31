@@ -37,6 +37,17 @@ namespace PlaneAlerter.Services
 		Task<IReadOnlyDictionary<string, string>?> UpdateReceivers();
 
 		Task<string[]> GetAircraftThumbnails(string icao);
+
+		/// <summary>
+		/// Try to fetch AircraftList.json with the given connection details
+		/// </summary>
+		/// <returns>Success flag and a human readable summary or error</returns>
+		Task<(bool Success, string Message)> TestConnection(string aircraftListUrl, string user, string password, int timeoutSeconds);
+
+		/// <summary>
+		/// Read the receiver location from the VRS server configuration
+		/// </summary>
+		Task<(decimal Lat, decimal Lng)?> GetServerLocation(string radarUrl, string user, string password, int timeoutSeconds);
 	}
 
 	internal class VrsService : IVrsService
@@ -325,6 +336,104 @@ namespace PlaneAlerter.Services
 			}
 
 			return GetReceivers();
+		}
+
+		public async Task<(bool Success, string Message)> TestConnection(string aircraftListUrl, string user, string password, int timeoutSeconds)
+		{
+			if (string.IsNullOrWhiteSpace(aircraftListUrl))
+				return (false, "Enter the AircraftList.json URL first.");
+
+			try
+			{
+				var request = new HttpRequestMessage(HttpMethod.Get, aircraftListUrl);
+				AddBasicAuth(request, user, password);
+
+				using var tokenSource = new CancellationTokenSource(Math.Max(timeoutSeconds, 1) * 1000);
+				var response = await _httpClient.SendAsync(request, tokenSource.Token);
+
+				if (response.StatusCode == HttpStatusCode.Unauthorized)
+					return (false, "VRS rejected the username/password (401 Unauthorized).");
+
+				response.EnsureSuccessStatusCode();
+
+				var content = await response.Content.ReadAsStringAsync(tokenSource.Token);
+				var json = (JObject?)JsonConvert.DeserializeObject(content);
+
+				if (json == null || json.OptionalValue<JToken>("acList") == null)
+					return (false, "Connected, but the response does not look like AircraftList.json. Check the URL ends with /VirtualRadar/AircraftList.json.");
+
+				var aircraftCount = json.OptionalValue<JToken>("acList")?.Count() ?? 0;
+				var receiverCount = json.OptionalValue<JToken>("feeds")?.Count() ?? 0;
+
+				return (true, $"Connected. VRS is reporting {aircraftCount} aircraft from {receiverCount} receiver(s).");
+			}
+			catch (TaskCanceledException)
+			{
+				return (false, $"No response within {timeoutSeconds} seconds.");
+			}
+			catch (Exception e)
+			{
+				return (false, $"{e.GetType().Name}: {e.Message}");
+			}
+		}
+
+		public async Task<(decimal Lat, decimal Lng)?> GetServerLocation(string radarUrl, string user, string password, int timeoutSeconds)
+		{
+			if (string.IsNullOrWhiteSpace(radarUrl))
+				return null;
+
+			var url = radarUrl.TrimEnd('/') + "/ServerConfig.json";
+
+			try
+			{
+				var request = new HttpRequestMessage(HttpMethod.Get, url);
+				AddBasicAuth(request, user, password);
+
+				using var tokenSource = new CancellationTokenSource(Math.Max(timeoutSeconds, 1) * 1000);
+				var response = await _httpClient.SendAsync(request, tokenSource.Token);
+				response.EnsureSuccessStatusCode();
+
+				var content = await response.Content.ReadAsStringAsync(tokenSource.Token);
+				var json = (JObject?)JsonConvert.DeserializeObject(content);
+
+				if (json == null)
+					return null;
+
+				var lat = json.OptionalValueStruct<decimal>("InitialLatitude");
+				var lng = json.OptionalValueStruct<decimal>("InitialLongitude");
+
+				if (lat != null && lng != null)
+					return (lat.Value, lng.Value);
+
+				//Fall back to the first receiver that has a position
+				var receivers = json.OptionalValue<JToken>("Receivers");
+				if (receivers != null)
+				{
+					foreach (var receiver in receivers)
+					{
+						var rLat = receiver.OptionalValueStruct<decimal>("Lat");
+						var rLng = receiver.OptionalValueStruct<decimal>("Lng");
+						if (rLat != null && rLng != null)
+							return (rLat.Value, rLng.Value);
+					}
+				}
+
+				return null;
+			}
+			catch (Exception e)
+			{
+				_logger.Log($"WARNING: Could not read ServerConfig.json from {url}: {e.Message}", Color.Orange);
+				return null;
+			}
+		}
+
+		private static void AddBasicAuth(HttpRequestMessage request, string user, string password)
+		{
+			if (string.IsNullOrEmpty(user))
+				return;
+
+			var encoded = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{user}:{password}"));
+			request.Headers.Authorization = new AuthenticationHeaderValue("Basic", encoded);
 		}
 
 		public async Task<string[]> GetAircraftThumbnails(string icao)

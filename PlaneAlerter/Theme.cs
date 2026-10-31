@@ -1,4 +1,4 @@
-using System.Drawing;
+﻿using System.Drawing;
 using System.Windows.Forms;
 
 namespace PlaneAlerter
@@ -51,6 +51,15 @@ namespace PlaneAlerter
 		public static void MakePrimary(Button button)
 		{
 			StyleButton(button, true);
+		}
+
+		/// <summary>
+		/// Style a label as a section header (bold navy)
+		/// </summary>
+		public static void MakeHeader(Label label)
+		{
+			label.ForeColor = Navy;
+			label.Font = new Font(label.Font, FontStyle.Bold);
 		}
 
 		/// <summary>

@@ -5,6 +5,11 @@ namespace PlaneAlerter.Services
 	internal interface IVrsEnumService
 	{
 		bool TryToString(string propertyKey, string? value, out string? convertedValue);
+
+		/// <summary>
+		/// Get the named values for an enum-valued property, or null if the property is not an enum
+		/// </summary>
+		IReadOnlyDictionary<int, string>? GetValues(string propertyKey);
 	}
 
 	/// <summary>
@@ -12,6 +17,22 @@ namespace PlaneAlerter.Services
     /// </summary>
     internal class VrsEnumService : IVrsEnumService
 	{
+        public IReadOnlyDictionary<int, string>? GetValues(string propertyKey)
+        {
+            return propertyKey switch
+            {
+                "Trt" => TransponderTypes,
+                "Species" => Species,
+                "EngType" => EngineType,
+                "EngMount" => EnginePlacement,
+                "WTC" => WakeTurbulenceCategory,
+                "AltT" => AltitudeType,
+                "SpdTyp" => SpeedType,
+                "VsiT" => VerticalSpeedType,
+                _ => null
+            };
+        }
+
         public bool TryToString(string propertyKey, string? value, out string? convertedValue)
         {
 	        if (value == null)

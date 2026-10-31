@@ -78,7 +78,8 @@ namespace PlaneAlerter.Services {
 				{ "SMTPUsr", Settings.SMTPUser },
 				{ "SMTPPwd", Settings.SMTPPassword },
 				{ "SMTPSSL", Settings.SMTPSSL },
-				{ "mapboxToken", Settings.MapboxToken }
+				{ "mapboxToken", Settings.MapboxToken },
+				{ "minimizeToTray", Settings.MinimizeToTray }
 			};
 		}
 
@@ -111,7 +112,7 @@ namespace PlaneAlerter.Services {
 		        aircraftPhotos: true,
 		        map: true,
 		        kmlFile: true,
-		        propertyList: PropertyListType.All,
+		        propertyList: PropertyListType.Essentials,
 		        radarLink: true,
 		        reportLink: true,
 		        receiverName: true,
@@ -201,7 +202,8 @@ namespace PlaneAlerter.Services {
 					settingsJson.OptionalValue<string>("SMTPUsr") ?? "",
 					settingsJson.OptionalValue<string>("SMTPPwd") ?? "",
 					settingsJson.OptionalValueStruct<bool>("SMTPSSL") ?? true,
-					settingsJson.OptionalValue<string>("mapboxToken") ?? "");
+					settingsJson.OptionalValue<string>("mapboxToken") ?? "",
+					settingsJson.OptionalValueStruct<bool>("minimizeToTray") ?? false);
 			}
 			catch (Exception e)
 			{

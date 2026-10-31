@@ -1,5 +1,9 @@
-﻿using System.Linq;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net;
 using System.Net.Mail;
+using System.Net.Mime;
 using System.Text;
 using System.Threading.Tasks;
 using PlaneAlerter.Enums;
@@ -26,7 +30,7 @@ namespace PlaneAlerter.Services
 		private const string Text = "#1E2A36";
 		private const string TextMuted = "#5B6B7B";
 
-		private const string LinkStyle = "color:" + Sky + ";font-weight:600;text-decoration:none;";
+		private const string FontStack = "'Segoe UI',Helvetica,Arial,sans-serif";
 
 		private readonly ISettingsManagerService _settingsManagerService;
 		private readonly IUrlBuilderService _urlBuilderService;
@@ -52,14 +56,28 @@ namespace PlaneAlerter.Services
 		{
 			var message = new MailMessage();
 
-			//Set message type to html
-			message.IsBodyHtml = true;
-
 			//Set subject
 			message.Subject = _stringFormatterService.Format(isDetection ? condition.EmailFirstFormat : condition.EmailLastFormat, aircraft, condition);
 
-			//Build body
-			message.Body = await BuildBody(condition, aircraft, receiverName, isDetection);
+			//Gather the pieces once so the HTML and plain-text views agree
+			var links = BuildLinks(aircraft);
+			var photos = _settingsManagerService.EmailContentConfig.AircraftPhotos
+				? await _vrsService.GetAircraftThumbnails(aircraft.Icao)
+				: Array.Empty<string>();
+			var mapUrl = _settingsManagerService.EmailContentConfig.Map && aircraft.GetProperty("Lat") != null
+				? _urlBuilderService.GenerateMapboxStaticMapUrl(aircraft)
+				: "";
+
+			//HTML body plus a plain-text alternative for notification previews and text-only clients
+			var html = BuildHtmlBody(condition, aircraft, receiverName, isDetection, links, photos, mapUrl);
+			var text = BuildTextBody(condition, aircraft, receiverName, isDetection, links);
+
+			message.AlternateViews.Add(AlternateView.CreateAlternateViewFromString(text, Encoding.UTF8, MediaTypeNames.Text.Plain));
+			message.AlternateViews.Add(AlternateView.CreateAlternateViewFromString(html, Encoding.UTF8, MediaTypeNames.Text.Html));
+
+			//Body is a fallback for clients that ignore alternate views
+			message.IsBodyHtml = true;
+			message.Body = html;
 
 			//Attach KML
 			if (_settingsManagerService.EmailContentConfig.KmlFile && aircraft.GetProperty("Lat") != null)
@@ -72,103 +90,186 @@ namespace PlaneAlerter.Services
 			return message;
 		}
 
-		private async Task<string> BuildBody(Condition condition, Aircraft aircraft, string receiverName,
-			bool isDetection)
+		/// <summary>
+		/// A link shown in the email
+		/// </summary>
+		private record EmailLink(string Label, string Url);
+
+		private List<EmailLink> BuildLinks(Aircraft aircraft)
 		{
 			var config = _settingsManagerService.EmailContentConfig;
-			var body = new StringBuilder();
+			var links = new List<EmailLink>();
 
-			body.Append("<!DOCTYPE html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'></head>");
-			body.Append($"<body style='margin:0;padding:16px;background:{Background};font-family:Segoe UI,Helvetica,Arial,sans-serif;color:{Text};'>");
-			body.Append($"<div style='max-width:960px;margin:0 auto;background:{Surface};border:1px solid {Border};'>");
-
-			//Header band
-			body.Append($"<div style='background:{Navy};border-bottom:4px solid {Amber};padding:14px 18px;color:#ffffff;'>");
-			body.Append("<div style='font-size:12px;letter-spacing:1px;text-transform:uppercase;opacity:0.8;'>Plane Alert</div>");
-			body.Append($"<h1 style='margin:2px 0 0;font-size:22px;font-weight:600;'>{(isDetection ? "First Contact" : "Last Contact")}</h1>");
-			body.Append("</div>");
-
-			body.Append("<div style='padding:14px 18px;'>");
-
-			//Condition name
-			body.Append($"<h2 style='margin:0 0 6px;font-size:17px;color:{Navy};'>Condition: {condition.Name}</h2>");
-
-			//Receiver name
-			if (config.ReceiverName)
-				body.Append($"<div style='color:{TextMuted};font-size:13px;margin-bottom:2px;'>Receiver: {receiverName}</div>");
-
-			//Transponder type
-			if (config.TransponderType)
-			{
-				var transponderName = _vrsEnumService.TryToString("Trt",
-					aircraft.GetProperty("Trt"), out var convertedTrtValue)
-					? convertedTrtValue
-					: "Unknown";
-
-				body.Append($"<div style='color:{TextMuted};font-size:13px;margin-bottom:2px;'>Transponder: {transponderName}</div>");
-			}
-
-			//Radar urls
 			if (config.RadarLink)
 			{
-				body.Append($"<p style='margin:12px 0 4px;font-size:14px;'><b>Track live on:</b> " +
-					$"<a style='{LinkStyle}' href='{_settingsManagerService.Settings.RadarUrl}?icao={aircraft.Icao}&movingMap=1'>VRS</a> &middot; " +
-					$"<a style='{LinkStyle}' href='https://globe.airplanes.live/?icao={aircraft.Icao}'>airplanes.live</a> &middot; " +
-					$"<a style='{LinkStyle}' href='https://globe.adsbexchange.com/?icao={aircraft.Icao}'>ADS-B Exchange</a> &middot; " +
-					$"<a style='{LinkStyle}' href='https://map.opensky-network.org/?icao={aircraft.Icao.ToLower()}'>OpenSky</a></p>");
+				if (!string.IsNullOrWhiteSpace(_settingsManagerService.Settings.RadarUrl))
+					links.Add(new EmailLink("Track on VRS", $"{_settingsManagerService.Settings.RadarUrl}?icao={aircraft.Icao}&movingMap=1"));
+				links.Add(new EmailLink("airplanes.live", $"https://globe.airplanes.live/?icao={aircraft.Icao}"));
+				links.Add(new EmailLink("ADS-B Exchange", $"https://globe.adsbexchange.com/?icao={aircraft.Icao}"));
+				links.Add(new EmailLink("OpenSky", $"https://map.opensky-network.org/?icao={aircraft.Icao.ToLower()}"));
 			}
 
-			//Report url
 			if (config.ReportLink)
 			{
 				var desktopReportUrl = _urlBuilderService.GenerateReportUrl(aircraft.Icao, false);
 				var mobileReportUrl = _urlBuilderService.GenerateReportUrl(aircraft.Icao, true);
-
 				if (!string.IsNullOrEmpty(desktopReportUrl))
-					body.Append($"<p style='margin:4px 0;font-size:14px;'><b>VRS Report:</b> " +
-						$"<a style='{LinkStyle}' href='{desktopReportUrl}'>Desktop</a> &middot; " +
-						$"<a style='{LinkStyle}' href='{mobileReportUrl}'>Mobile</a></p>");
+				{
+					links.Add(new EmailLink("VRS report", desktopReportUrl));
+					links.Add(new EmailLink("VRS report (mobile)", mobileReportUrl));
+				}
 			}
 
-			//Airframes.org url
 			if (config.AfLookup && !string.IsNullOrEmpty(aircraft.GetProperty("Reg")))
-				body.Append($"<p style='margin:4px 0;font-size:14px;'><a style='{LinkStyle}' href='{_urlBuilderService.GenerateAirframesOrgUrl(aircraft.GetProperty("Reg")!)}'>Airframes.org Lookup</a></p>");
+				links.Add(new EmailLink("Airframes.org", _urlBuilderService.GenerateAirframesOrgUrl(aircraft.GetProperty("Reg")!)));
 
-			body.Append("<table style='border-collapse:collapse;margin-top:10px;' cellpadding='0' cellspacing='0'><tr><td style='vertical-align:top;'>");
+			if (config.Map && aircraft.GetProperty("Lat") != null)
+				links.Add(new EmailLink("Google Maps", $"https://www.google.com/maps/search/{aircraft.GetProperty("Lat")},{aircraft.GetProperty("Long")}"));
+
+			return links;
+		}
+
+		/// <summary>
+		/// The handful of facts shown prominently under the header
+		/// </summary>
+		private List<(string Label, string Value)> BuildKeyFacts(Aircraft aircraft)
+		{
+			var facts = new List<(string, string)>();
+
+			void Add(string label, string? value)
+			{
+				if (!string.IsNullOrWhiteSpace(value))
+					facts.Add((label, value));
+			}
+
+			Add("Registration", aircraft.GetProperty("Reg"));
+			Add("Callsign", aircraft.GetProperty("Call"));
+			Add("Type", aircraft.GetProperty("Type"));
+			Add("Model", aircraft.GetProperty("Mdl"));
+			Add("Operator", aircraft.GetProperty("Op"));
+
+			var altitude = aircraft.GetProperty("Alt");
+			if (!string.IsNullOrWhiteSpace(altitude))
+				Add("Altitude", altitude + " ft");
+
+			var speed = aircraft.GetProperty("Spd");
+			if (!string.IsNullOrWhiteSpace(speed))
+				Add("Speed", speed + " kt");
+
+			var squawk = aircraft.GetProperty("Sqk");
+			Add("Squawk", squawk);
+
+			var route = string.Join(" → ", new[] { aircraft.GetProperty("From"), aircraft.GetProperty("To") }
+				.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x!.Split(' ')[0]));
+			Add("Route", route);
+
+			return facts;
+		}
+
+		private string BuildHtmlBody(Condition condition, Aircraft aircraft, string receiverName, bool isDetection,
+			List<EmailLink> links, string[] photos, string mapUrl)
+		{
+			var config = _settingsManagerService.EmailContentConfig;
+			var body = new StringBuilder();
+
+			var title = isDetection ? "First Contact" : "Last Contact";
+			var headline = string.Join("  ·  ", new[] { aircraft.GetProperty("Reg"), aircraft.GetProperty("Type"), aircraft.GetProperty("Call") }
+				.Where(x => !string.IsNullOrWhiteSpace(x)).Select(E));
+			if (headline.Length == 0)
+				headline = aircraft.Icao;
+
+			body.Append("<!DOCTYPE html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'>");
+			body.Append($"<title>{E(title)}: {headline}</title></head>");
+			body.Append($"<body style='margin:0;padding:0;background:{Background};font-family:{FontStack};color:{Text};'>");
+			body.Append($"<div style='background:{Background};padding:16px 8px;'>");
+			body.Append($"<div style='max-width:600px;margin:0 auto;background:{Surface};border:1px solid {Border};border-radius:6px;overflow:hidden;'>");
+
+			//Header band
+			body.Append($"<div style='background:{Navy};border-bottom:4px solid {Amber};padding:16px 20px;color:#ffffff;'>");
+			body.Append("<div style='font-size:11px;letter-spacing:1.5px;text-transform:uppercase;opacity:0.75;'>Plane Alert &middot; " + E(title) + "</div>");
+			body.Append($"<div style='margin-top:4px;font-size:22px;font-weight:600;line-height:1.2;'>{headline}</div>");
+			body.Append($"<div style='margin-top:6px;font-size:13px;opacity:0.85;'>Condition: {E(condition.Name)}</div>");
+			body.Append("</div>");
+
+			body.Append("<div style='padding:16px 20px;'>");
+
+			//Context line
+			var context = new List<string>();
+			if (config.ReceiverName)
+				context.Add("Receiver: " + E(receiverName));
+			if (config.TransponderType)
+			{
+				var transponderName = _vrsEnumService.TryToString("Trt", aircraft.GetProperty("Trt"), out var convertedTrtValue)
+					? convertedTrtValue
+					: "Unknown";
+				context.Add("Transponder: " + E(transponderName));
+			}
+			context.Add(DateTime.Now.ToString("ddd d MMM yyyy HH:mm"));
+			body.Append($"<div style='color:{TextMuted};font-size:12px;margin-bottom:14px;'>{string.Join(" &nbsp;&middot;&nbsp; ", context)}</div>");
+
+			//Key facts
+			var facts = BuildKeyFacts(aircraft);
+			if (facts.Count > 0)
+			{
+				body.Append("<table role='presentation' cellpadding='0' cellspacing='0' style='width:100%;border-collapse:separate;border-spacing:0 6px;margin-bottom:8px;'>");
+				for (var i = 0; i < facts.Count; i += 2)
+				{
+					body.Append("<tr>");
+					for (var j = i; j < i + 2; j++)
+					{
+						if (j < facts.Count)
+						{
+							body.Append($"<td style='width:50%;padding:8px 10px;background:{SurfaceAlt};border-left:3px solid {Sky};vertical-align:top;'>");
+							body.Append($"<div style='font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:{TextMuted};'>{E(facts[j].Label)}</div>");
+							body.Append($"<div style='font-size:15px;font-weight:600;color:{Navy};'>{E(facts[j].Value)}</div>");
+							body.Append("</td>");
+						}
+						else
+							body.Append("<td style='width:50%;'></td>");
+
+						if (j == i)
+							body.Append("<td style='width:8px;'></td>");
+					}
+					body.Append("</tr>");
+				}
+				body.Append("</table>");
+			}
+
+			//Links as buttons
+			if (links.Count > 0)
+			{
+				body.Append("<div style='margin:10px 0 16px;'>");
+				foreach (var link in links)
+				{
+					body.Append($"<a href='{E(link.Url)}' style='display:inline-block;margin:0 6px 6px 0;padding:7px 12px;background:{Surface};color:{Sky};border:1px solid {Sky};border-radius:4px;font-size:13px;font-weight:600;text-decoration:none;'>{E(link.Label)}</a>");
+				}
+				body.Append("</div>");
+			}
+
+			//Map
+			if (!string.IsNullOrEmpty(mapUrl))
+			{
+				body.Append($"<img src='{E(mapUrl)}' alt='Map of aircraft position and track' width='560' style='display:block;width:100%;max-width:560px;height:auto;border:1px solid {Border};border-radius:4px;margin-bottom:14px;' />");
+			}
+
+			//Photos
+			if (photos.Length > 0)
+			{
+				body.Append("<div style='margin-bottom:14px;'>");
+				foreach (var image in photos)
+					body.Append($"<img src='{E(image)}' alt='Aircraft photo' style='display:inline-block;max-width:48%;height:auto;margin:0 2% 6px 0;border:1px solid {Border};border-radius:4px;vertical-align:top;' />");
+				body.Append("</div>");
+			}
 
 			//Property list
 			if (config.PropertyList != PropertyListType.Hidden)
 				body.Append(BuildPropertiesTable(aircraft, receiverName));
 
-			body.Append("</td><td style='padding-left:14px;vertical-align:top;'>");
+			body.Append("</div>");
 
-			//Aircraft photos
-			if (config.AircraftPhotos)
-			{
-				var aircraftImages = await _vrsService.GetAircraftThumbnails(aircraft.Icao);
+			//Footer
+			body.Append($"<div style='padding:10px 20px;background:{SurfaceAlt};border-top:1px solid {Border};color:{TextMuted};font-size:11px;'>Sent by PlaneAlerter for Virtual Radar Server</div>");
 
-				foreach (var image in aircraftImages)
-					body.Append($"<img style='margin:0 6px 6px 0;border:1px solid {Border};max-width:100%;height:auto;' src='{image}' alt='Aircraft photo' />");
-
-				if (aircraftImages.Any())
-					body.Append("<br>");
-			}
-
-			//Map
-			if (config.Map && aircraft.GetProperty("Lat") != null)
-			{
-				var googleMapsUrl =
-					$"https://www.google.com/maps/search/{aircraft.GetProperty("Lat")},{aircraft.GetProperty("Long")}";
-
-				var mapUrl = _urlBuilderService.GenerateMapboxStaticMapUrl(aircraft);
-
-				body.Append($"<p style='margin:6px 0;font-size:14px;'><a style='{LinkStyle}' href='{googleMapsUrl}'>Open in Google Maps</a></p>");
-
-				if (!string.IsNullOrEmpty(mapUrl))
-					body.Append($"<img style='border:1px solid {Border};max-width:100%;height:auto;' alt='Map of aircraft position and track' src='{mapUrl}' />");
-			}
-
-			body.Append("</td></tr></table>");
 			body.Append("</div></div></body></html>");
 
 			return body.ToString();
@@ -177,12 +278,32 @@ namespace PlaneAlerter.Services
 		private string BuildPropertiesTable(Aircraft aircraft, string receiverName)
 		{
 			var table = new StringBuilder();
-			table.Append($"<table id='acTable' style='border:1px solid {Border};border-collapse:collapse;font-size:13px;' cellpadding='0' cellspacing='0'>");
-			table.Append($"<tr><th colspan='2' style='background:{Navy};color:#ffffff;text-align:left;padding:6px 10px;font-size:13px;letter-spacing:0.5px;'>Aircraft Details</th></tr>");
+			table.Append($"<table id='acTable' cellpadding='0' cellspacing='0' style='width:100%;border:1px solid {Border};border-collapse:collapse;font-size:13px;'>");
+			table.Append($"<tr><th colspan='2' style='background:{Navy};color:#ffffff;text-align:left;padding:7px 10px;font-size:12px;letter-spacing:0.5px;text-transform:uppercase;'>Aircraft details</th></tr>");
 
-			var aircraftPropertyKeys = aircraft.GetPropertyKeys();
 			var rowIndex = 0;
-			foreach (var propertyKey in aircraftPropertyKeys)
+			foreach (var (name, value) in EnumerateProperties(aircraft, receiverName))
+			{
+				var rowBackground = rowIndex % 2 == 0 ? Surface : SurfaceAlt;
+				table.Append($"<tr style='background:{rowBackground};'>");
+				table.Append($"<td style='padding:5px 10px;font-weight:600;color:{Navy};white-space:nowrap;border-bottom:1px solid {Border};width:40%;'>{E(name)}</td>");
+				table.Append($"<td style='padding:5px 10px;border-bottom:1px solid {Border};word-break:break-word;'>{E(value)}</td>");
+				table.Append("</tr>");
+				rowIndex++;
+			}
+			table.Append("</table>");
+
+			return table.ToString();
+		}
+
+		/// <summary>
+		/// The properties to list, honouring the All / Essentials setting, as display name and value
+		/// </summary>
+		private IEnumerable<(string Name, string Value)> EnumerateProperties(Aircraft aircraft, string receiverName)
+		{
+			var essentialsOnly = _settingsManagerService.EmailContentConfig.PropertyList == PropertyListType.Essentials;
+
+			foreach (var propertyKey in aircraft.GetPropertyKeys())
 			{
 				var property = VrsProperties.VrsPropertyData.Where(x => x.Value[2] == propertyKey)
 					.Select(x => (VrsProperty?)x.Key).FirstOrDefault();
@@ -191,17 +312,14 @@ namespace PlaneAlerter.Services
 
 				if (property != null)
 				{
-					//If property list type is essentials and this property is not in the list of essentials then skip
-					if (_settingsManagerService.EmailContentConfig.PropertyList == PropertyListType.Essentials &&
-					    !VrsProperties.EssentialProperties.Contains(property.Value))
+					if (essentialsOnly && !VrsProperties.EssentialProperties.Contains(property.Value))
 						continue;
 
 					propertyName = property.Value.ToString();
 				}
 				else
 				{
-					//If property list type is essentials then skip
-					if (_settingsManagerService.EmailContentConfig.PropertyList == PropertyListType.Essentials)
+					if (essentialsOnly)
 						continue;
 
 					//Set parameter to a readable name if it's not included in vrs property info
@@ -228,32 +346,56 @@ namespace PlaneAlerter.Services
 					}
 				}
 
-				//Get value
-				var value = aircraft.GetProperty(propertyKey);
+				var value = aircraft.GetProperty(propertyKey) ?? "";
 
 				//Add string conversions of enum values
 				if (_vrsEnumService.TryToString(propertyKey, value, out var convertedValue))
-				{
 					value += " (" + convertedValue + ")";
-				}
 
 				//If rcvr, add receiver name
 				if (propertyKey == "Rcvr")
-				{
 					value += " (" + receiverName + ")";
-				}
 
-				//Add html for property
-				var rowBackground = rowIndex % 2 == 0 ? Surface : SurfaceAlt;
-				table.Append($"<tr style='background:{rowBackground};border-bottom:1px solid {Border};'>");
-				table.Append($"<td style='padding:4px 10px;font-weight:600;color:{Navy};white-space:nowrap;'>{propertyName.Replace('_', ' ')}</td>");
-				table.Append($"<td style='padding:4px 10px;'>{value}</td>");
-				table.Append("</tr>");
-				rowIndex++;
+				yield return (propertyName.Replace('_', ' '), value);
 			}
-			table.Append("</table>");
-
-			return table.ToString();
 		}
+
+		private string BuildTextBody(Condition condition, Aircraft aircraft, string receiverName, bool isDetection, List<EmailLink> links)
+		{
+			var text = new StringBuilder();
+			text.AppendLine($"PLANE ALERT - {(isDetection ? "FIRST CONTACT" : "LAST CONTACT")}");
+			text.AppendLine($"Condition: {condition.Name}");
+			if (_settingsManagerService.EmailContentConfig.ReceiverName)
+				text.AppendLine($"Receiver: {receiverName}");
+			text.AppendLine();
+
+			foreach (var (label, value) in BuildKeyFacts(aircraft))
+				text.AppendLine($"{label}: {value}");
+
+			if (links.Count > 0)
+			{
+				text.AppendLine();
+				foreach (var link in links)
+					text.AppendLine($"{link.Label}: {link.Url}");
+			}
+
+			if (_settingsManagerService.EmailContentConfig.PropertyList != PropertyListType.Hidden)
+			{
+				text.AppendLine();
+				text.AppendLine("Aircraft details");
+				text.AppendLine("----------------");
+				foreach (var (name, value) in EnumerateProperties(aircraft, receiverName))
+					text.AppendLine($"{name}: {value}");
+			}
+
+			text.AppendLine();
+			text.AppendLine("Sent by PlaneAlerter for Virtual Radar Server");
+			return text.ToString();
+		}
+
+		/// <summary>
+		/// HTML-encode a value from VRS before placing it in the email
+		/// </summary>
+		private static string E(string? value) => WebUtility.HtmlEncode(value ?? "");
 	}
 }

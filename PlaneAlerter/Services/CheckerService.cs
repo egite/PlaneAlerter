@@ -17,6 +17,17 @@ namespace PlaneAlerter.Services {
 		delegate void AlertSentEventHandler(Condition condition, Aircraft aircraft, string receiver, bool isFirst);
 		event AlertSentEventHandler SendingAlert;
 		event EventHandler<string> StatusChanged;
+
+		/// <summary>
+		/// Time the next check is due
+		/// </summary>
+		DateTime NextCheck { get; }
+
+		/// <summary>
+		/// Number of aircraft in the last AircraftList.json response
+		/// </summary>
+		int LastAircraftCount { get; }
+
 		void Start();
 		void Stop();
 	}
@@ -47,7 +58,12 @@ namespace PlaneAlerter.Services {
 		/// <summary>
 		/// Time of next check
 		/// </summary>
-		private DateTime _nextCheck;
+		public DateTime NextCheck { get; private set; }
+
+		/// <summary>
+		/// Number of aircraft in the last AircraftList.json response
+		/// </summary>
+		public int LastAircraftCount { get; private set; }
 
 		/// <summary>
 		/// Stop the loop when it's suitable to do so
@@ -92,7 +108,7 @@ namespace PlaneAlerter.Services {
 				StatusChanged?.Invoke(this, "Waiting for next check...");
 
 				//Wait until the next check time
-				while (DateTime.Compare(DateTime.Now, _nextCheck) < 0) {
+				while (DateTime.Compare(DateTime.Now, NextCheck) < 0) {
 					//Cancel if thread is supposed to stop
 					if (_stopping)
 						return;
@@ -112,7 +128,7 @@ namespace PlaneAlerter.Services {
 		private async Task Check()
 		{
 			//Set next check time
-			_nextCheck = DateTime.Now.AddSeconds(_settingsManagerService.Settings.RefreshRate);
+			NextCheck = DateTime.Now.AddSeconds(_settingsManagerService.Settings.RefreshRate);
 
 			//Notify user that aircraft info is being downloaded
 			StatusChanged?.Invoke(this, "Downloading Aircraft Info...");
@@ -124,6 +140,7 @@ namespace PlaneAlerter.Services {
 
 			var aircraftList = _vrsService.GetAircraftList();
 			var receivers = _vrsService.GetReceivers();
+			LastAircraftCount = aircraftList.Count;
 			
 			//Check if there are aircraft to check
 			if (aircraftList.Count == 0)

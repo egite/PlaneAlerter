@@ -1,17 +1,11 @@
-﻿/*
- * Created by SharpDevelop.
- * User: HP Pavillion
- * Date: 8/09/2015
- * Time: 5:40 PM
- * 
- * To change this template use Tools | Options | Coding | Edit Standard Headers.
- */
-
-using System;
+﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Linq;
 using System.Media;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
@@ -35,34 +29,31 @@ namespace PlaneAlerter.Forms
 		private readonly ILoggerWithQueue _logger;
 
 		/// <summary>
-		/// Maximum lines kept in the console before the oldest are trimmed
+		/// Maximum lines kept in the console history before the oldest are dropped
 		/// </summary>
 		private const int MaxConsoleLines = 4000;
+
+		/// <summary>
+		/// Every message logged this session (capped), so the console can be re-filtered
+		/// </summary>
+		private readonly List<LogMessage> _logHistory = new();
+
+		/// <summary>
+		/// Lines currently shown in the console
+		/// </summary>
 		private int _consoleLineCount;
 
 		/// <summary>
-		/// Send message to windows
+		/// Set while the window is hidden to the tray
 		/// </summary>
-		/// <returns></returns>
+		private bool _hiddenToTray;
+
+		private const int WM_USER = 0x400;
+		private const int EM_GETSCROLLPOS = WM_USER + 221;
+		private const int EM_SETSCROLLPOS = WM_USER + 222;
+
 		[DllImport("user32.dll")]
-		public static extern int SendMessage(IntPtr hWnd, int wMsg, bool wParam, int lParam);
-
-		/// <summary>
-		/// Suspend drawing for control
-		/// </summary>
-		/// <param name="parent">Control to suspend drawing for</param>
-		public static void SuspendDrawing(Control parent) {
-			SendMessage(parent.Handle, 11, false, 0);
-		}
-
-		/// <summary>
-		/// Resume drawing for control
-		/// </summary>
-		/// <param name="parent">Control to resume drawing for</param>
-		public static void ResumeDrawing(Control parent) {
-			SendMessage(parent.Handle, 11, true, 0);
-			parent.Refresh();
-		}
+		private static extern int SendMessage(IntPtr hWnd, int wMsg, int wParam, ref Point lParam);
 
 		/// <summary>
 		/// Flash a window
@@ -88,13 +79,12 @@ namespace PlaneAlerter.Forms
 		/// Flash a window
 		/// </summary>
 		/// <param name="form">The form to flash</param>
-		public static bool FlashWindowEx(Form form)
+		private static bool FlashWindowEx(Form form)
 		{
-			var hWnd = form.Handle;
 			var fInfo = new FLASHWINFO();
 
 			fInfo.cbSize = Convert.ToUInt32(Marshal.SizeOf(fInfo));
-			fInfo.hwnd = hWnd;
+			fInfo.hwnd = form.Handle;
 			fInfo.dwFlags = FLASHW_ALL | FLASHW_TIMERNOFG;
 			fInfo.uCount = uint.MaxValue;
 			fInfo.dwTimeout = 0;
@@ -115,71 +105,140 @@ namespace PlaneAlerter.Forms
 			_checkerService = checkerService;
 			_logger = logger;
 
-			//Stop the annoying cross-thread problems
-			//This is probably not a good thing but I'm too lazy
-			CheckForIllegalCrossThreadCalls = false;
-
 			//Set culture to invariant
 			Thread.CurrentThread.CurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
 
 			//Initialise UI components
 			InitializeComponent();
 			Theme.Apply(this);
+			Theme.MakePrimary(startStopButton);
+			Theme.MakePrimary(addConditionButton);
+			Theme.MakeHeader(conditionsHeaderLabel);
+			Theme.MakeHeader(activeAlertsLabel);
+			Theme.MakeHeader(consoleLabel);
+			emptyStateLabel.ForeColor = Theme.TextMuted;
+			consoleFilterComboBox.SelectedIndex = 0;
 
-			_logger.NewLogMessage += NewLogMessageHandler;
-			_checkerService.StatusChanged += (_, status) => UpdateStatusLabel(status);
-			_threadManagerService.StatusChanged += ThreadManagerServiceOnStatusChanged;
-			_checkerService.SendingAlert += CheckerServiceOnSendingAlert;
-			_statsService.StatsChanged += (_, _) => UpdateStats();
+			//Services raise these from the checker thread, so every handler hops to the UI thread
+			_logger.NewLogMessage += (_, _) => OnUi(FlushLogQueue);
+			_checkerService.StatusChanged += (_, status) => OnUi(() => UpdateStatusLabel(status));
+			_threadManagerService.StatusChanged += (_, _) => OnUi(UpdateCheckerControls);
+			_checkerService.SendingAlert += (condition, aircraft, _, _) => OnUi(() => NotifyAlert(condition, aircraft));
+			_statsService.StatsChanged += (_, _) => OnUi(UpdateStats);
 
 			//When shown, wait until everything has loaded then start threads
 			Shown += delegate
 			{
+				RestoreLayout();
+
 				_settingsManagerService.Load();
 				_conditionManagerService.LoadConditions();
 
-				if (_settingsManagerService.Settings.StartOnStart)
-					_threadManagerService.Start();
-
-				UpdateSettings();
-				UpdateStats();
 				UpdateConditionList();
-				conditionTreeView.Nodes[0].Expand();
+				UpdateStats();
+				UpdateCheckerControls();
+				uiTimer.Start();
 
-				//Notify user if no conditions are found
-				if (_conditionManagerService.Conditions.Count == 0)
-				{
-					MessageBox.Show("No Conditions! Click Options then Open Condition Editor to add conditions.",
-						"No Conditions!", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
-				}
+				if (_settingsManagerService.Settings.StartOnStart && _conditionManagerService.Conditions.Count > 0)
+					_threadManagerService.Start();
 			};
 		}
 
-		private void ThreadManagerServiceOnStatusChanged(object? sender, EventArgs e)
+		/// <summary>
+		/// Run an action on the UI thread, ignoring it if the form is gone
+		/// </summary>
+		private void OnUi(Action action)
+		{
+			if (IsDisposed || !IsHandleCreated)
+				return;
+
+			if (InvokeRequired)
+			{
+				try
+				{
+					BeginInvoke(action);
+				}
+				catch (ObjectDisposedException)
+				{
+				}
+				catch (InvalidOperationException)
+				{
+				}
+			}
+			else
+				action();
+		}
+
+		#region Checker state
+
+		private void UpdateCheckerControls()
 		{
 			switch (_threadManagerService.ThreadStatus)
 			{
 				case CheckerStatus.Stopped:
-					startToolStripMenuItem.Text = "Start";
-					startToolStripMenuItem.Enabled = true;
-					restartToolStripMenuItem.Enabled = false;
+					startStopButton.Text = "Start";
+					startStopButton.Enabled = true;
+					restartButton.Enabled = false;
+					trayStartStopMenuItem.Text = "Start";
+					trayStartStopMenuItem.Enabled = true;
 					UpdateStatusLabel("Idle");
 					UpdateStats();
 					break;
 				case CheckerStatus.Running:
-					startToolStripMenuItem.Text = "Stop";
-					startToolStripMenuItem.Enabled = true;
-					restartToolStripMenuItem.Enabled = true;
+					startStopButton.Text = "Stop";
+					startStopButton.Enabled = true;
+					restartButton.Enabled = true;
+					trayStartStopMenuItem.Text = "Stop";
+					trayStartStopMenuItem.Enabled = true;
 					break;
 				case CheckerStatus.Stopping:
-					startToolStripMenuItem.Text = "Stopping";
-					startToolStripMenuItem.Enabled = false;
-					restartToolStripMenuItem.Enabled = false;
+					startStopButton.Text = "Stopping...";
+					startStopButton.Enabled = false;
+					restartButton.Enabled = false;
+					trayStartStopMenuItem.Enabled = false;
 					break;
 			}
+
+			notifyIcon.Text = "PlaneAlerter - " + (_threadManagerService.ThreadStatus == CheckerStatus.Running ? "running" : "stopped");
 		}
 
-		private void CheckerServiceOnSendingAlert(Condition condition, Aircraft aircraft, string receiver, bool isFirst)
+		/// <summary>
+		/// Updates the status label
+		/// </summary>
+		/// <param name="text">Text to update label with</param>
+		private void UpdateStatusLabel(string text) {
+			statusLabel.Text = text;
+		}
+
+		private void uiTimer_Tick(object sender, EventArgs e)
+		{
+			if (_threadManagerService.ThreadStatus == CheckerStatus.Running)
+			{
+				var remaining = _checkerService.NextCheck - DateTime.Now;
+				nextCheckLabel.Text = remaining.TotalSeconds > 0
+					? $"Next check in {Math.Ceiling(remaining.TotalSeconds):0}s"
+					: "Checking...";
+				aircraftCountLabel.Text = $"Aircraft on radar: {_checkerService.LastAircraftCount}";
+			}
+			else
+			{
+				nextCheckLabel.Text = "Next check: —";
+				aircraftCountLabel.Text = "Aircraft on radar: —";
+			}
+
+			var uptime = DateTime.Now - _statsService.TimeStarted;
+			uptimeLabel.Text = uptime.TotalHours >= 24
+				? $"Up {(int)uptime.TotalDays}d {uptime.Hours}h"
+				: uptime.TotalHours >= 1
+					? $"Up {(int)uptime.TotalHours}h {uptime.Minutes:00}m"
+					: $"Up {uptime.Minutes}m";
+
+			//Signal-lost ages change every second
+			if (_checkerService.ActiveMatches.Values.Any(m => m.SignalLost))
+				UpdateActiveMatches();
+		}
+
+		private void NotifyAlert(Condition condition, Aircraft aircraft)
 		{
 			//Make a ding noise
 			if (_settingsManagerService.Settings.SoundAlerts)
@@ -196,88 +255,181 @@ namespace PlaneAlerter.Forms
 				FlashWindowEx(this);
 		}
 
-		/// <summary>
-		/// Writes new log messages to the console
-		/// </summary>
-		private void NewLogMessageHandler(object? sender, EventArgs e)
-		{
-			var messages = _logger.DequeueLogsForUi();
-			try {
-				foreach (var message in messages)
-				{
-					//Keep the console from growing without bound
-					if (++_consoleLineCount > MaxConsoleLines)
-					{
-						var trimTo = console.GetFirstCharIndexFromLine(MaxConsoleLines / 4);
-						if (trimTo > 0)
-						{
-							console.Select(0, trimTo);
-							console.SelectedText = "";
-							_consoleLineCount -= MaxConsoleLines / 4;
-						}
-					}
+		#endregion
 
-					console.Select(console.TextLength, 0);
-					console.SelectionColor = Theme.LogColor(message.Color);
-					console.AppendText(message.Message + Environment.NewLine);
-				}
+		#region Console
+
+		/// <summary>
+		/// Pull queued log messages from the logger into the history and console
+		/// </summary>
+		private void FlushLogQueue()
+		{
+			var messages = _logger.DequeueLogsForUi(int.MaxValue).ToList();
+			if (messages.Count == 0)
+				return;
+
+			foreach (var message in messages)
+			{
+				_logHistory.Add(message);
+				if (MessagePassesFilter(message))
+					AppendToConsole(message);
 			}
-			catch (Exception) {
+
+			if (_logHistory.Count > MaxConsoleLines)
+				_logHistory.RemoveRange(0, _logHistory.Count - MaxConsoleLines);
+		}
+
+		/// <summary>
+		/// Which messages the console filter lets through
+		/// </summary>
+		private bool MessagePassesFilter(LogMessage message)
+		{
+			var argb = message.Color?.ToArgb();
+			var isError = argb == Color.Red.ToArgb();
+			var isWarning = argb == Color.Orange.ToArgb();
+			var isAlertActivity = argb == Color.LightGreen.ToArgb() || argb == Color.LightBlue.ToArgb() ||
+			                      argb == Color.LightGoldenrodYellow.ToArgb();
+
+			return consoleFilterComboBox.SelectedIndex switch
+			{
+				1 => isAlertActivity || isWarning,
+				2 => isError || isWarning,
+				_ => true
+			};
+		}
+
+		private void AppendToConsole(LogMessage message)
+		{
+			try
+			{
+				//Keep the console from growing without bound
+				if (++_consoleLineCount > MaxConsoleLines)
+				{
+					var trimTo = console.GetFirstCharIndexFromLine(MaxConsoleLines / 4);
+					if (trimTo > 0)
+					{
+						console.Select(0, trimTo);
+						console.SelectedText = "";
+						_consoleLineCount -= MaxConsoleLines / 4;
+					}
+				}
+
+				var scrollPos = Point.Empty;
+				if (!autoScrollCheckBox.Checked)
+					SendMessage(console.Handle, EM_GETSCROLLPOS, 0, ref scrollPos);
+
+				console.Select(console.TextLength, 0);
+				console.SelectionColor = Theme.LogColor(message.Color);
+				console.AppendText(message.Message + Environment.NewLine);
+
+				if (autoScrollCheckBox.Checked)
+					console.ScrollToCaret();
+				else
+					SendMessage(console.Handle, EM_SETSCROLLPOS, 0, ref scrollPos);
+			}
+			catch (Exception)
+			{
 			}
 		}
+
+		/// <summary>
+		/// Redraw the console from history using the current filter
+		/// </summary>
+		private void RebuildConsole()
+		{
+			console.SuspendLayout();
+			console.Clear();
+			_consoleLineCount = 0;
+			foreach (var message in _logHistory.Where(MessagePassesFilter))
+				AppendToConsole(message);
+			console.ResumeLayout();
+		}
+
+		private void consoleFilterComboBox_SelectedIndexChanged(object sender, EventArgs e)
+		{
+			if (IsHandleCreated)
+				RebuildConsole();
+		}
+
+		private void copyConsoleButton_Click(object sender, EventArgs e)
+		{
+			if (console.TextLength == 0)
+				return;
+
+			try
+			{
+				Clipboard.SetText(console.Text);
+			}
+			catch (Exception)
+			{
+			}
+		}
+
+		private void clearConsole_Click(object sender, EventArgs e) {
+			console.Clear();
+			_logHistory.Clear();
+			_consoleLineCount = 0;
+		}
+
+		/// <summary>
+		/// Link clicked in console
+		/// </summary>
+		private void ConsoleLinkClicked(object sender, LinkClickedEventArgs e)
+		{
+			if (string.IsNullOrEmpty(e.LinkText))
+				return;
+
+			OpenUrl(e.LinkText);
+		}
+
+		#endregion
+
+		#region Conditions and matches
 
 		/// <summary>
 		/// Updates the condition list
 		/// </summary>
 		private void UpdateConditionList() {
-			conditionTreeView.Nodes[0].Nodes.Clear();
-			foreach(var conditionId in _conditionManagerService.Conditions.Keys) {
+			conditionsGrid.Rows.Clear();
+
+			foreach (var conditionId in _conditionManagerService.Conditions.Keys.OrderBy(x => x)) {
 				var c = _conditionManagerService.Conditions[conditionId];
 
-				var conditionNode = conditionTreeView.Nodes[0].Nodes.Add("Name: " + c.Name);
-				conditionNode.Tag = conditionId;
-				conditionNode.Nodes.Add("Id: " + conditionId);
-				conditionNode.Nodes.Add("Alert Type: " + c.AlertType.ToString().Replace("_", " "));
-				conditionNode.Nodes.Add("Email Enabled: " + c.EmailEnabled);
-				conditionNode.Nodes.Add("Alerts Sent: " + c.AlertsThisSession.ToString());
+				var triggerSummary = string.Join(c.TriggersUseOrLogic ? "  or  " : "  and  ",
+					c.Triggers.Values.Select(t => $"{t.Property.ToString().Replace('_', ' ')} {t.ComparisonType.ToLowerInvariant()} {t.Value}"));
 
-				var triggersNode = conditionNode.Nodes.Add("Condition Triggers");
-				foreach(var trigger in c.Triggers.Values)
-					triggersNode.Nodes.Add(trigger.Property.ToString() + " " + trigger.ComparisonType + " " + trigger.Value);
+				var rowIndex = conditionsGrid.Rows.Add(
+					c.Name,
+					DescribeAlertType(c.AlertType),
+					triggerSummary,
+					c.EmailEnabled ? c.ReceiverEmails.Count.ToString() : "off",
+					c.AlertsThisSession);
+
+				var row = conditionsGrid.Rows[rowIndex];
+				row.Tag = conditionId;
+				row.Cells[2].ToolTipText = triggerSummary.Replace("  ", " ");
+				row.Cells[3].ToolTipText = c.EmailEnabled ? string.Join(Environment.NewLine, c.ReceiverEmails) : "Email alerts disabled for this condition";
+
+				if (c.AlertType == AlertType.Disabled)
+					row.DefaultCellStyle.ForeColor = Theme.TextMuted;
 			}
+
+			var hasConditions = conditionsGrid.Rows.Count > 0;
+			conditionsGrid.Visible = hasConditions;
+			emptyStatePanel.Visible = !hasConditions;
+			conditionsHeaderLabel.Text = hasConditions ? $"Conditions ({conditionsGrid.Rows.Count})" : "Conditions";
 		}
 
-		/// <summary>
-		/// Update settings
-		/// </summary>
-		private void UpdateSettings()
+		private static string DescribeAlertType(AlertType alertType)
 		{
-			foreach (TreeNode settingsGroupNode in conditionTreeView.Nodes[1].Nodes)
-				settingsGroupNode.Nodes.Clear();
-
-			conditionTreeView.Nodes[1].Nodes[0].Nodes.Add("Sender Email: " + _settingsManagerService.Settings.SenderEmail);
-			conditionTreeView.Nodes[1].Nodes[0].Nodes.Add("SMTP Host: " + _settingsManagerService.Settings.SMTPHost + ":" +
-			                                              _settingsManagerService.Settings.SMTPPort);
-			conditionTreeView.Nodes[1].Nodes[0].Nodes.Add("SMTP SSL: " + _settingsManagerService.Settings.SMTPSSL);
-			conditionTreeView.Nodes[1].Nodes[0].Nodes.Add("SMTP Username: " + _settingsManagerService.Settings.SMTPUser);
-
-			conditionTreeView.Nodes[1].Nodes[1].Nodes.Add("AircraftList.json Url: " +
-			                                              _settingsManagerService.Settings.AircraftListUrl);
-			conditionTreeView.Nodes[1].Nodes[1].Nodes.Add("VRS Radar Url: " + _settingsManagerService.Settings.RadarUrl);
-			if (_settingsManagerService.Settings.VRSAuthenticate)
+			return alertType switch
 			{
-				conditionTreeView.Nodes[1].Nodes[1].Nodes.Add("VRS Authentication: " +
-				                                              _settingsManagerService.Settings.VRSAuthenticate);
-				conditionTreeView.Nodes[1].Nodes[1].Nodes.Add("VRS Username: " + _settingsManagerService.Settings.VRSUser);
-			}
-			else
-				conditionTreeView.Nodes[1].Nodes[1].Nodes.Add("VRS Authentication: " +
-				                                              _settingsManagerService.Settings.VRSAuthenticate);
-			conditionTreeView.Nodes[1].Nodes[1].Nodes.Add("Removal Timeout: " + _settingsManagerService.Settings.RemovalTimeout + " secs");
-			conditionTreeView.Nodes[1].Nodes[1].Nodes.Add("Ignore aircraft further than: " +
-			                                              _settingsManagerService.Settings.IgnoreDistance + " km away");
-			conditionTreeView.Nodes[1].Nodes[1].Nodes.Add("Ignore aircraft higher than: " +
-			                                              _settingsManagerService.Settings.IgnoreAltitude + " ft");
+				AlertType.Disabled => "Disabled",
+				AlertType.First_Contact => "First contact",
+				AlertType.Last_Contact => "Last contact",
+				AlertType.First_and_Last_Contact => "First and last",
+				_ => alertType.ToString()
+			};
 		}
 
 		/// <summary>
@@ -285,194 +437,188 @@ namespace PlaneAlerter.Forms
 		/// </summary>
 		private void UpdateStats()
 		{
-			//Cancel if UI or other things are not in a state for displaying stuff
-			if (conditionTreeView.IsDisposed)
+			if (IsDisposed)
 				return;
 
-			conditionTreeView.Invoke((MethodInvoker)delegate
+			try
 			{
-				try
+				alertsSentLabel.Text = $"Alerts sent: {_statsService.TotalAlertsSent}";
+
+				foreach (DataGridViewRow row in conditionsGrid.Rows)
 				{
-					conditionTreeView.BeginUpdate();
-					conditionTreeView.Nodes[2].Nodes[0].Text = "Total Emails Sent: " + _statsService.TotalAlertsSent;
-					conditionTreeView.Nodes[2].Nodes[1].Text =
-						"Total Conditions: " + _conditionManagerService.Conditions.Count;
-					conditionTreeView.Nodes[2].Nodes[2].Text = "Time Started: " + _statsService.TimeStarted;
-
-					foreach (TreeNode conditionNode in conditionTreeView.Nodes[0].Nodes)
-					{
-						var conditionId = Convert.ToInt32(conditionNode.Tag.ToString());
-						conditionNode.Nodes[3].Text = "Alerts Sent: " +
-						                              _conditionManagerService.Conditions[conditionId]
-							                              .AlertsThisSession;
-					}
-
-					conditionTreeView.EndUpdate();
-
-					activeMatchesDataGridView.Rows.Clear();
-					foreach (var match in _checkerService.ActiveMatches.Values)
-					{
-						activeMatchesDataGridView.Rows.Add(match.Icao,
-							match.AircraftInfo.GetProperty("Reg"),
-							match.AircraftInfo.GetProperty("Type"),
-							match.AircraftInfo.GetProperty("Call"), match.Conditions[0].Condition.Name);
-					}
-
-					activeAlertsLabel.Text = $"Active Alerts ({_checkerService.ActiveMatches.Count}):";
+					if (row.Tag is int conditionId &&
+					    _conditionManagerService.Conditions.TryGetValue(conditionId, out var condition))
+						row.Cells[4].Value = condition.AlertsThisSession;
 				}
-				catch (Exception)
-				{
 
-				}
-			});
-		}
-
-		/// <summary>
-		/// Updates the status label
-		/// </summary>
-		/// <param name="text">Text to update label with</param>
-		private void UpdateStatusLabel(string text) {
-			//Suspend and resume drawing so it doesn't try to draw as it's being changed
-			SuspendDrawing(statusStrip1);
-			statusLabel.Text = "Status: " + text;
-			ResumeDrawing(statusStrip1);
-		}
-
-		private void startConditionEditorToolStripMenuItem_Click(object sender, EventArgs e) {
-			var editor = Program.ServiceProvider.GetRequiredService<ConditionListForm>();
-			editor.Show();
-			editor.FormClosing += delegate {
-				_conditionManagerService.LoadConditions();
-				_checkerService.ActiveMatches.Clear();
-				UpdateConditionList();
-				conditionTreeView.Nodes[0].Expand();
-			};		
+				UpdateActiveMatches();
+			}
+			catch (Exception)
+			{
+			}
 		}
 
 		/// <summary>
-		/// Show log file button click
+		/// Rebuild the active matches grid, keeping the selected aircraft selected
 		/// </summary>
-		/// <param name="sender">Sender</param>
-		/// <param name="e">Event Args</param>
-		private void showLogFileToolStripMenuItem_Click(object sender, EventArgs e) {
-			if (!File.Exists("alerts.log"))
-				return;
-
-			//Open log file
-			Process.Start("explorer.exe", "/select, \"alerts.log\"");
-		}
-		
-		/// <summary>
-		/// Restart button click
-		/// </summary>
-		/// <param name="sender">Sender</param>
-		/// <param name="e">Event Args</param>
-		private void RestartToolStripMenuItemClick(object sender, EventArgs e) {
-			_threadManagerService.Restart();
-		}
-		
-		/// <summary>
-		/// Form closing
-		/// </summary>
-		/// <param name="sender">Sender</param>
-		/// <param name="e">Event Args</param>
-		private void PlaneAlerterFormClosing(object sender, FormClosingEventArgs e) {
-			_settingsManagerService.Save();
-		}
-		
-		/// <summary>
-		/// Link clicked in console
-		/// </summary>
-		/// <param name="sender">Sender</param>
-		/// <param name="e">Event Args</param>
-		private void ConsoleLinkClicked(object sender, LinkClickedEventArgs e)
+		private void UpdateActiveMatches()
 		{
-			if (string.IsNullOrEmpty(e.LinkText))
-				return;
+			var selectedIcao = activeMatchesGrid.CurrentRow?.Tag as string;
+			var firstDisplayed = activeMatchesGrid.FirstDisplayedScrollingRowIndex;
 
-			//Open link
-			Process.Start(new ProcessStartInfo(e.LinkText)
+			activeMatchesGrid.SuspendLayout();
+			activeMatchesGrid.Rows.Clear();
+
+			foreach (var match in _checkerService.ActiveMatches.Values.ToList().OrderByDescending(m => m.MatchedTime))
 			{
-				UseShellExecute = true
-			});
+				var status = match.SignalLost
+					? $"Signal lost {FormatAge(DateTime.Now - match.SignalLostTime)} ago"
+					: "Tracking";
 
+				var rowIndex = activeMatchesGrid.Rows.Add(match.Icao,
+					match.AircraftInfo.GetProperty("Reg"),
+					match.AircraftInfo.GetProperty("Type"),
+					match.AircraftInfo.GetProperty("Call"),
+					string.Join(", ", match.Conditions.Select(c => c.Condition.Name)),
+					match.MatchedTime.ToString("HH:mm:ss"),
+					status);
+
+				var row = activeMatchesGrid.Rows[rowIndex];
+				row.Tag = match.Icao;
+				if (match.SignalLost)
+					row.DefaultCellStyle.ForeColor = Theme.TextMuted;
+			}
+
+			if (selectedIcao != null)
+			{
+				foreach (DataGridViewRow row in activeMatchesGrid.Rows)
+				{
+					if (row.Tag as string != selectedIcao)
+						continue;
+
+					row.Selected = true;
+					activeMatchesGrid.CurrentCell = row.Cells[0];
+					break;
+				}
+			}
+
+			if (firstDisplayed >= 0 && firstDisplayed < activeMatchesGrid.Rows.Count)
+				activeMatchesGrid.FirstDisplayedScrollingRowIndex = firstDisplayed;
+
+			activeMatchesGrid.ResumeLayout();
+
+			activeAlertsLabel.Text = $"Active alerts ({_checkerService.ActiveMatches.Count})";
 		}
 
-		/// <summary>
-		/// Clear console button click
-		/// </summary>
-		/// <param name="sender">Sender</param>
-		/// <param name="e">Event Args</param>
-		private void clearConsoleToolStripMenuItem_Click(object sender, EventArgs e) {
-			//Set text to nothing
-			console.Text = "";
-			_consoleLineCount = 0;
+		private static string FormatAge(TimeSpan age)
+		{
+			if (age.TotalSeconds < 60) return $"{(int)age.TotalSeconds}s";
+			if (age.TotalMinutes < 60) return $"{(int)age.TotalMinutes}m {age.Seconds:00}s";
+			return $"{(int)age.TotalHours}h {age.Minutes:00}m";
 		}
 
-		/// <summary>
-		/// Settings button click
-		/// </summary>
-		/// <param name="sender">Sender</param>
-		/// <param name="e">Event Args</param>
-		private void settingsToolStripMenuItem_Click(object sender, EventArgs e) {
-			//Show settings form then update settings
-			var settingsForm = Program.ServiceProvider.GetRequiredService<SettingsForm>();
-			if (settingsForm.ShowDialog() != DialogResult.OK)
+		private void conditionsGrid_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
+		{
+			if (e.RowIndex < 0)
 				return;
 
-			_logger.Log("Reloading Settings...", Color.White);
+			if (conditionsGrid.Rows[e.RowIndex].Tag is int conditionId)
+				OpenConditionEditor(conditionId);
+		}
 
-			UpdateSettings();
+		private void activeMatchesGrid_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
+		{
+			if (e.RowIndex < 0 || activeMatchesGrid.Rows[e.RowIndex].Tag is not string icao)
+				return;
 
+			var radarUrl = _settingsManagerService.Settings.RadarUrl;
+			if (string.IsNullOrWhiteSpace(radarUrl))
+				return;
+
+			OpenUrl($"{radarUrl}?icao={icao}&movingMap=1");
+		}
+
+		#endregion
+
+		#region Dialogs
+
+		private void OpenConditionEditor(int? selectConditionId)
+		{
+			var editor = Program.ServiceProvider.GetRequiredService<ConditionEditorForm>();
+			if (selectConditionId != null)
+				editor.SelectCondition(selectConditionId.Value);
+
+			if (editor.ShowDialog(this) != DialogResult.OK)
+				return;
+
+			_conditionManagerService.LoadConditions();
+			_checkerService.ActiveMatches.Clear();
+			UpdateConditionList();
+			UpdateStats();
+		}
+
+		private void conditionEditorMenuItem_Click(object sender, EventArgs e) {
+			OpenConditionEditor(null);
+		}
+
+		private void settingsMenuItem_Click(object sender, EventArgs e) {
+			var settingsForm = Program.ServiceProvider.GetRequiredService<SettingsForm>();
+			if (settingsForm.ShowDialog(this) != DialogResult.OK)
+				return;
+
+			_logger.Log("Settings saved, restarting checker...", Color.White);
 			_threadManagerService.Restart();
 		}
 
-		/// <summary>
-		/// Property info button click
-		/// </summary>
-		/// <param name="sender">Sender</param>
-		/// <param name="e">Event Args</param>
-		private void propertyInfoToolStripMenuItem_Click(object sender, EventArgs e) {
-			//Show property info form
-			var propertyInfoForm = Program.ServiceProvider.GetRequiredService<PropertyInfoForm>();
-			propertyInfoForm.Show();
-		}
-
-		/// <summary>
-		/// Tray icon balloon clicked
-		/// </summary>
-		/// <param name="sender">Sender</param>
-		/// <param name="e">Event Args</param>
-		private void notifyIcon_BalloonTipClicked(object sender, EventArgs e) {
-			//Show form
-			Activate();
-		}
-
-		/// <summary>
-		/// Email content config button click
-		/// </summary>
-		/// <param name="sender">Sender</param>
-		/// <param name="e">Event Args</param>
-		private void emailContentConfigToolStripMenuItem_Click(object sender, EventArgs e) {
-			//Show email content config form
+		private void emailContentConfigMenuItem_Click(object sender, EventArgs e) {
 			var ecc = Program.ServiceProvider.GetRequiredService<EmailContentConfigForm>();
-			ecc.ShowDialog();
+			ecc.ShowDialog(this);
 		}
 
-		/// <summary>
-		/// Donate button click
-		/// </summary>
-		/// <param name="sender">Sender</param>
-		/// <param name="e">Event Args</param>
-		private void donateToolStripMenuItem_Click(object sender, EventArgs e) {
-			//Open donate link
-			Process.Start(new ProcessStartInfo("https://www.paypal.me/dom2364")
+		private void propertyInfoMenuItem_Click(object sender, EventArgs e) {
+			var propertyInfoForm = Program.ServiceProvider.GetRequiredService<PropertyInfoForm>();
+			propertyInfoForm.Show(this);
+		}
+
+		private void showLogFileMenuItem_Click(object sender, EventArgs e) {
+			if (!File.Exists("alerts.log"))
 			{
-				UseShellExecute = true
-			});
+				MessageBox.Show(this, "No alerts have been logged yet, so alerts.log does not exist.", "No log file",
+					MessageBoxButtons.OK, MessageBoxIcon.Information);
+				return;
+			}
+
+			Process.Start("explorer.exe", "/select, \"" + Path.GetFullPath("alerts.log") + "\"");
 		}
 
-		private void startToolStripMenuItem_Click(object sender, EventArgs e) {
+		private void donateMenuItem_Click(object sender, EventArgs e) {
+			OpenUrl("https://www.paypal.me/dom2364");
+		}
+
+		private void aboutMenuItem_Click(object sender, EventArgs e)
+		{
+			var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "?";
+			MessageBox.Show(this,
+				$"PlaneAlerter {version}\n\nEmail alerts for Virtual Radar Server.\n\nOriginal project by Dom2364: github.com/Dom2364/PlaneAlerter\nThis fork: github.com/egite/PlaneAlerter",
+				"About PlaneAlerter", MessageBoxButtons.OK, MessageBoxIcon.Information);
+		}
+
+		private static void OpenUrl(string url)
+		{
+			try
+			{
+				Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+			}
+			catch (Exception)
+			{
+			}
+		}
+
+		#endregion
+
+		#region Start/stop, tray, layout
+
+		private void startStopButton_Click(object sender, EventArgs e) {
 			if (_threadManagerService.ThreadStatus == CheckerStatus.Running) {
 				_threadManagerService.Stop();
 			}
@@ -480,5 +626,93 @@ namespace PlaneAlerter.Forms
 				_threadManagerService.Start();
 			}
 		}
+
+		private void restartButton_Click(object sender, EventArgs e) {
+			_threadManagerService.Restart();
+		}
+
+		private void exitMenuItem_Click(object sender, EventArgs e)
+		{
+			Close();
+		}
+
+		/// <summary>
+		/// Bring the window back from the tray or to the front
+		/// </summary>
+		private void notifyIcon_Activate(object sender, EventArgs e) {
+			if (_hiddenToTray)
+			{
+				_hiddenToTray = false;
+				Show();
+				WindowState = FormWindowState.Normal;
+			}
+
+			Activate();
+		}
+
+		private void MainForm_Resize(object sender, EventArgs e)
+		{
+			if (WindowState != FormWindowState.Minimized || _hiddenToTray)
+				return;
+
+			if (_settingsManagerService.Settings != null && _settingsManagerService.Settings.MinimizeToTray)
+			{
+				_hiddenToTray = true;
+				Hide();
+			}
+		}
+
+		private void MainForm_FormClosing(object sender, FormClosingEventArgs e) {
+			uiTimer.Stop();
+			SaveLayout();
+			notifyIcon.Visible = false;
+
+			if (_settingsManagerService.Settings != null)
+				_settingsManagerService.Save();
+		}
+
+		private void RestoreLayout()
+		{
+			var layout = WindowLayout.Load();
+			if (layout == null)
+				return;
+
+			try
+			{
+				if (layout.Width >= MinimumSize.Width && layout.Height >= MinimumSize.Height)
+					Size = new Size(layout.Width, layout.Height);
+
+				if (layout.Maximized)
+					WindowState = FormWindowState.Maximized;
+
+				if (layout.LeftPaneWidth > splitContainer1.Panel1MinSize &&
+				    layout.LeftPaneWidth < splitContainer1.Width - splitContainer1.Panel2MinSize)
+					splitContainer1.SplitterDistance = layout.LeftPaneWidth;
+
+				if (layout.ConditionsPaneHeight > splitContainer2.Panel1MinSize &&
+				    layout.ConditionsPaneHeight < splitContainer2.Height - splitContainer2.Panel2MinSize)
+					splitContainer2.SplitterDistance = layout.ConditionsPaneHeight;
+			}
+			catch (Exception)
+			{
+				//Bad layout file, keep defaults
+			}
+		}
+
+		private void SaveLayout()
+		{
+			var bounds = WindowState == FormWindowState.Normal ? Bounds : RestoreBounds;
+
+			new WindowLayout
+			{
+				Width = bounds.Width,
+				Height = bounds.Height,
+				Maximized = WindowState == FormWindowState.Maximized,
+				LeftPaneWidth = splitContainer1.SplitterDistance,
+				ConditionsPaneHeight = splitContainer2.SplitterDistance
+			}.Save();
+		}
+
+		#endregion
 	}
 }

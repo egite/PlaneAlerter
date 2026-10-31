@@ -153,6 +153,11 @@
 		/// </summary>
 		public string MapboxToken { get; set; }
 
+		/// <summary>
+		/// Hide to the notification area instead of the taskbar when minimised
+		/// </summary>
+		public bool MinimizeToTray { get; set; }
+
 		public Settings(
 			string senderEmail,
 			string aircraftListUrl,
@@ -182,7 +187,8 @@
 			string smtpUser,
 			string smtpPassword,
 			bool smtpSSL,
-			string mapboxToken)
+			string mapboxToken,
+			bool minimizeToTray)
 		{
 			SenderEmail = senderEmail;
 			AircraftListUrl = aircraftListUrl;
@@ -213,6 +219,7 @@
 			SMTPPassword = smtpPassword;
 			SMTPSSL = smtpSSL;
 			MapboxToken = mapboxToken;
+			MinimizeToTray = minimizeToTray;
 		}
 	}
 }
