@@ -2,7 +2,7 @@ dotnet publish PlaneAlerter\PlaneAlerter.csproj -p:PublishProfile=Publish-x64 -c
 dotnet publish PlaneAlerter\PlaneAlerter.csproj -p:PublishProfile=Publish-x86 -c Release -f net7.0-windows -r win-x86
 
 $version = (Get-Item PlaneAlerter\bin\Release\publish\win-x64\PlaneAlerter.exe).VersionInfo.FileVersionRaw
-$versionString = "$($version.Major).$($version.Minor).$($version.Build)"
+$versionString = "{0}.{1:D2}.{2:D2}-{3:D4}" -f $version.Major, $version.Minor, $version.Build, $version.Revision
 $x64OutputZip = "Releases\PlaneAlerter_${versionString}_x64.zip"
 $x86OutputZip = "Releases\PlaneAlerter_${versionString}_x86.zip"
 

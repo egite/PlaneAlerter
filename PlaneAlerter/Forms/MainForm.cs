@@ -5,7 +5,6 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Media;
-using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
@@ -597,9 +596,9 @@ namespace PlaneAlerter.Forms
 
 		private void aboutMenuItem_Click(object sender, EventArgs e)
 		{
-			var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "?";
+			var version = BuildInfo.FromCommit ? BuildInfo.Version : BuildInfo.Version + " (no git history, build time)";
 			MessageBox.Show(this,
-				$"PlaneAlerter {version}\n\nEmail alerts for Virtual Radar Server.\n\nOriginal project by Dom2364: github.com/Dom2364/PlaneAlerter\nThis fork: github.com/egite/PlaneAlerter",
+				$"PlaneAlerter\nVersion: {version}\n\nEmail alerts for Virtual Radar Server.\n\nOriginal project by Dom2364: github.com/Dom2364/PlaneAlerter\nThis fork: github.com/egite/PlaneAlerter",
 				"About PlaneAlerter", MessageBoxButtons.OK, MessageBoxIcon.Information);
 		}
 

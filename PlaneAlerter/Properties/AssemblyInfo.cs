@@ -5,11 +5,11 @@ using System.Runtime.Versioning;
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("PlaneAlerter 2.0")]
+[assembly: AssemblyTitle("PlaneAlerter")]
 [assembly: AssemblyDescription("PlaneAlerter for Virtual Radar Server")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("Dominic Hubert")]
-[assembly: AssemblyProduct("PlaneAlerter 2.0")]
+[assembly: AssemblyProduct("PlaneAlerter")]
 [assembly: AssemblyCopyright("Copyright © 2025")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
@@ -34,4 +34,4 @@ using System.Runtime.Versioning;
 // by using the '*' as shown below:
 // [assembly: AssemblyVersion("1.0.*")]
 [assembly: AssemblyVersion("2.6.2.0")]
-[assembly: AssemblyFileVersion("2.6.2.0")]
+//AssemblyFileVersion is generated at build time from the last pushed commit (see StampCommitVersion in the .csproj)
