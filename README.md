@@ -60,14 +60,22 @@ Reorganised into four tabs: **Radar**, **Email**, **Alerts** and **Maps**.
 
 ### Condition editor
 
-Upstream's two modal windows (a list, then an editor per condition) are merged into one **master-detail** window: the condition list on the left, the selected condition's editor on the right.
+Upstream's two modal windows (a list, then an editor per condition) are replaced with one window: the condition list on the left, the selected condition on the right. The controls are drawn in code to match the app theme.
 
-- **Add, Duplicate, Remove, Move up / Move down**, and drag-to-reorder in the list. Order matters because of "stop checking later conditions on a match".
-- Switching conditions validates and commits the one you are leaving; invalid input keeps you on it and shows what is wrong. Changes are only written to `conditions.json` on **Save and Close**. Closing with unsaved changes asks **Save / Discard / Cancel**.
-- **Inline validation** with `ErrorProvider` icons on the offending field plus a one-line summary, instead of red labels and a message box.
-- **Trigger grid**: properties are listed alphabetically, a *Type* column shows whether the property is a number, text, yes/no or a list, and list-valued properties (species, wake turbulence category, engine type, transponder type and so on) get a dropdown of named values instead of a bare number. Numeric comparisons are checked for numeric input.
-- **Insert ▾** buttons next to the subject fields list the available placeholders (`[ConditionName]`, `[RcvrName]`, `[Date]`, `[Time]`, then common aircraft fields with the full list under *More properties*). A live **preview** under each subject shows the result for a sample aircraft.
-- Alert types read as plain language ("First and last contact", "First contact only", ...). Disabled conditions are marked in the list and greyed in the main window.
+- **Condition list** shows each condition's on/off state, its name and a one-line summary of its rules ("Military is yes · Altitude is below 5000 ft"). A filter box narrows the list. **+ New**, and a right-click / **⋯** menu with Duplicate, Move up, Move down and Delete. Drag to reorder, with an insertion line; order matters because of "stop checking later conditions". Deleting shows an **Undo** link instead of a confirmation box. Shortcuts: Ctrl+N, Ctrl+D, Del, Alt+Up/Down, Ctrl+F, Ctrl+S.
+- **Rules read as a sentence**: "Match aircraft where *all / any* of these rules are true", then one row per rule: property, comparison, value, remove.
+  - The **property picker** is a searchable popup grouped by category (Identity, Aircraft, Flight, Position and movement, Reception, Your database), with friendly names ("Type code", "Wake category", "Military") and each property's kind or unit. Typing on a closed picker starts a search.
+  - **Plain-language comparisons**: is, is not, is above, is below, starts with, ends with, contains. They're stored as upstream's `Equals`, `Lower Than` and so on.
+  - The **value editor fits the property**: a Yes/No switch for flags (stored as `Equals True` / `Not Equals True`), a dropdown of named values for list properties (species, wake category, engine type, ...), and a text box with the unit shown (ft, kts, ft/min, km, °) for everything else.
+  - The property's description is shown under each rule, so the separate Property Reference window is rarely needed (it's still linked at the bottom).
+- **Live matches**: under the name, "2 of 143 aircraft on the radar match right now", using the aircraft from the checker's last update. It recalculates as you edit and refreshes every few seconds, and hovering lists the matching aircraft.
+- **Enabled switch** separate from the alert timing (First contact / Last contact / Both), so turning a condition off and on keeps its timing for the session. Only the subject fields the chosen timing uses are shown.
+- **Recipients as chips**: Enter, comma, semicolon or space adds an address, pasted lists are split, invalid addresses show red, and Backspace or double-click edits one. New conditions start with the current condition's recipients.
+- **Subjects**: type `[` (or use **Insert field ▾**) to pick a placeholder from a searchable list, with a live preview for a sample aircraft underneath.
+- **Validation doesn't block you.** You can move between conditions freely. A condition you've left that has problems gets a warning in the list, and its problems appear next to the fields they belong to. Saving checks everything, jumps to the first problem, and only writes `conditions.json` when it's all valid. Closing with unsaved changes asks Save / Discard / Cancel.
+- "Stop checking later conditions on a match" is under **More options**, with an explanation.
+
+`conditions.json` is unchanged; a file opened and saved without edits comes back identical. The trigger-matching logic is shared between the checker and the live preview (`ConditionMatcher`).
 
 ### Other UI
 

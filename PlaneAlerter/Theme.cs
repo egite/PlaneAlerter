@@ -23,6 +23,9 @@ namespace PlaneAlerter
 		public static readonly Color TextOnNavy = Color.White;
 		public static readonly Color TextDisabledOnNavy = ColorTranslator.FromHtml("#8FA3B8");
 		public static readonly Color ErrorBackground = ColorTranslator.FromHtml("#FDE2E2");
+		public static readonly Color ErrorText = ColorTranslator.FromHtml("#C0392B");
+		public static readonly Color WarningText = ColorTranslator.FromHtml("#B9770E");
+		public static readonly Color Success = ColorTranslator.FromHtml("#2E9E5B");
 
 		//Console
 		public static readonly Color ConsoleBackground = NavyDark;
@@ -34,6 +37,11 @@ namespace PlaneAlerter
 		public static readonly Color LogNotice = ColorTranslator.FromHtml("#F5E27A");
 
 		private static readonly ToolStripRenderer MenuRenderer = new ThemeRenderer();
+
+		/// <summary>
+		/// Renderer for themed menus and dropdowns
+		/// </summary>
+		public static ToolStripRenderer Renderer => MenuRenderer;
 
 		/// <summary>
 		/// Apply the theme to a form and every control on it
@@ -51,6 +59,14 @@ namespace PlaneAlerter
 		public static void MakePrimary(Button button)
 		{
 			StyleButton(button, true);
+		}
+
+		/// <summary>
+		/// Style a button as a secondary action (white with a border)
+		/// </summary>
+		public static void MakeSecondary(Button button)
+		{
+			StyleButton(button, false);
 		}
 
 		/// <summary>

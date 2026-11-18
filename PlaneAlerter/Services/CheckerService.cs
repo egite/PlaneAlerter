@@ -28,6 +28,11 @@ namespace PlaneAlerter.Services {
 		/// </summary>
 		int LastAircraftCount { get; }
 
+		/// <summary>
+		/// Aircraft from the last AircraftList.json response
+		/// </summary>
+		IReadOnlyCollection<Aircraft> LastAircraftList { get; }
+
 		void Start();
 		void Stop();
 	}
@@ -64,6 +69,11 @@ namespace PlaneAlerter.Services {
 		/// Number of aircraft in the last AircraftList.json response
 		/// </summary>
 		public int LastAircraftCount { get; private set; }
+
+		/// <summary>
+		/// Aircraft from the last AircraftList.json response
+		/// </summary>
+		public IReadOnlyCollection<Aircraft> LastAircraftList { get; private set; } = Array.Empty<Aircraft>();
 
 		/// <summary>
 		/// Stop the loop when it's suitable to do so
@@ -141,6 +151,7 @@ namespace PlaneAlerter.Services {
 			var aircraftList = _vrsService.GetAircraftList();
 			var receivers = _vrsService.GetReceivers();
 			LastAircraftCount = aircraftList.Count;
+			LastAircraftList = aircraftList;
 			
 			//Check if there are aircraft to check
 			if (aircraftList.Count == 0)
@@ -183,9 +194,7 @@ namespace PlaneAlerter.Services {
 				}
 
 				//Ignore if VRS database info looks missing
-				if (aircraft.GetProperty("Reg") == null && aircraft.GetProperty("Type") == null &&
-					(aircraft.GetProperty("FlightsCount") == null ||
-					 Convert.ToInt32(aircraft.GetProperty("FlightsCount")) == 0))
+				if (!ConditionMatcher.HasDatabaseInfo(aircraft))
 					continue;
 
 				var ignoreFollowing = false;
@@ -202,7 +211,7 @@ namespace PlaneAlerter.Services {
 					if (condition.AlertType == AlertType.Disabled || matchedAlready)
 						continue;
 
-					var conditionMatches = ConditionMatches(condition, aircraft);
+					var conditionMatches = ConditionMatcher.Matches(condition, aircraft);
 
 					if (conditionMatches)
 					{
@@ -326,62 +335,6 @@ namespace PlaneAlerter.Services {
 					}
 				}
 			}
-		}
-
-		private static bool ConditionMatches(Condition condition, Aircraft aircraft)
-		{
-			var triggersMatching = 0;
-
-			//Iterate triggers for condition
-			foreach (var trigger in condition.Triggers.Values)
-			{
-				//Get internal name for property to compare
-				var propertyInternalName = VrsProperties.VrsPropertyData[trigger.Property][2];
-				var propertyValue = aircraft.GetProperty(propertyInternalName);
-
-				//Check property against value
-				if (trigger.ComparisonType == "Equals")
-				{
-					if (propertyValue == null)
-					{
-						if (trigger.Value == "") triggersMatching++;
-					}
-					else
-					{
-						if (propertyValue == trigger.Value) triggersMatching++;
-					}
-				}
-				else if (trigger.ComparisonType == "Not Equals")
-				{
-					if (propertyValue == null)
-					{
-						if (trigger.Value != "") triggersMatching++;
-					}
-					else
-					{
-						if (propertyValue != trigger.Value) triggersMatching++;
-					}
-				}
-				//These comparisons must have a non-empty value to compare with
-				else if (!string.IsNullOrEmpty(propertyValue))
-				{
-					switch (trigger.ComparisonType)
-					{
-						case "Contains" when propertyValue.Contains(trigger.Value):
-						case "Higher Than" when Convert.ToDouble(propertyValue) > Convert.ToDouble(trigger.Value):
-						case "Lower Than" when Convert.ToDouble(propertyValue) < Convert.ToDouble(trigger.Value):
-						case "Starts With" when (propertyValue.Length > trigger.Value.Length && propertyValue.Substring(0, trigger.Value.Length) == trigger.Value):
-						case "Ends With" when (propertyValue.Length > trigger.Value.Length && propertyValue.Substring(propertyValue.Length - trigger.Value.Length) == trigger.Value):
-							triggersMatching++;
-							break;
-					}
-				}
-
-				if (condition.TriggersUseOrLogic && triggersMatching > 0)
-					return true;
-			}
-
-			return triggersMatching == condition.Triggers.Count;
 		}
 
 		private async Task SendAlert(Condition condition, Aircraft aircraft, string receiver, bool isFirst) {
