@@ -9,6 +9,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
 using Microsoft.Extensions.DependencyInjection;
+using PlaneAlerter.Controls;
 using PlaneAlerter.Enums;
 using PlaneAlerter.Models;
 using PlaneAlerter.Services;
@@ -117,6 +118,7 @@ namespace PlaneAlerter.Forms
 			Theme.MakeHeader(consoleLabel);
 			emptyStateLabel.ForeColor = Theme.TextMuted;
 			consoleFilterComboBox.SelectedIndex = 0;
+			SetUpConditionToggles();
 
 			//Services raise these from the checker thread, so every handler hops to the UI thread
 			_logger.NewLogMessage += (_, _) => OnUi(FlushLogQueue);
@@ -398,6 +400,7 @@ namespace PlaneAlerter.Forms
 					c.Triggers.Values.Select(t => $"{t.Property.ToString().Replace('_', ' ')} {t.ComparisonType.ToLowerInvariant()} {t.Value}"));
 
 				var rowIndex = conditionsGrid.Rows.Add(
+					c.Enabled,
 					c.Name,
 					DescribeAlertType(c.AlertType),
 					triggerSummary,
@@ -406,11 +409,9 @@ namespace PlaneAlerter.Forms
 
 				var row = conditionsGrid.Rows[rowIndex];
 				row.Tag = conditionId;
-				row.Cells[2].ToolTipText = triggerSummary.Replace("  ", " ");
-				row.Cells[3].ToolTipText = c.EmailEnabled ? string.Join(Environment.NewLine, c.ReceiverEmails) : "Email alerts disabled for this condition";
-
-				if (c.AlertType == AlertType.Disabled)
-					row.DefaultCellStyle.ForeColor = Theme.TextMuted;
+				row.Cells[conditionTriggersColumn.Index].ToolTipText = triggerSummary.Replace("  ", " ");
+				row.Cells[conditionRecipientsColumn.Index].ToolTipText = c.EmailEnabled ? string.Join(Environment.NewLine, c.ReceiverEmails) : "Email alerts disabled for this condition";
+				StyleConditionRow(row, c);
 			}
 
 			var hasConditions = conditionsGrid.Rows.Count > 0;
@@ -418,6 +419,145 @@ namespace PlaneAlerter.Forms
 			emptyStatePanel.Visible = !hasConditions;
 			conditionsHeaderLabel.Text = hasConditions ? $"Conditions ({conditionsGrid.Rows.Count})" : "Conditions";
 		}
+
+		#region Condition on/off switches
+
+		private readonly DataGridViewColumn _conditionEnabledColumn = new DataGridViewTextBoxColumn
+		{
+			Name = "conditionEnabledColumn",
+			HeaderText = "",
+			AutoSizeMode = DataGridViewAutoSizeColumnMode.None,
+			Resizable = DataGridViewTriState.False,
+			SortMode = DataGridViewColumnSortMode.NotSortable,
+			ReadOnly = true,
+			ToolTipText = "Turn conditions on or off"
+		};
+
+		private int _hoverToggleRow = -1;
+
+		/// <summary>
+		/// Add a column of on/off switches to the start of the condition list
+		/// </summary>
+		private void SetUpConditionToggles()
+		{
+			_conditionEnabledColumn.Width = S(52);
+			conditionsGrid.Columns.Insert(0, _conditionEnabledColumn);
+
+			conditionsGrid.CellPainting += ConditionsGrid_CellPainting;
+			conditionsGrid.CellMouseClick += (_, e) =>
+			{
+				if (e.Button == MouseButtons.Left && e.RowIndex >= 0 && e.ColumnIndex == _conditionEnabledColumn.Index)
+					ToggleCondition(e.RowIndex);
+			};
+			conditionsGrid.CellMouseEnter += (_, e) =>
+			{
+				var onToggle = e.RowIndex >= 0 && e.ColumnIndex == _conditionEnabledColumn.Index;
+				SetHoverToggleRow(onToggle ? e.RowIndex : -1);
+			};
+			conditionsGrid.MouseLeave += (_, _) => SetHoverToggleRow(-1);
+			conditionsGrid.KeyDown += (_, e) =>
+			{
+				if (e.KeyCode != Keys.Space || conditionsGrid.CurrentRow == null)
+					return;
+				ToggleCondition(conditionsGrid.CurrentRow.Index);
+				e.Handled = true;
+			};
+		}
+
+		private static int S(int pixels) => Ui.S(pixels);
+
+		private void SetHoverToggleRow(int rowIndex)
+		{
+			if (_hoverToggleRow == rowIndex)
+				return;
+
+			var old = _hoverToggleRow;
+			_hoverToggleRow = rowIndex;
+			conditionsGrid.Cursor = rowIndex >= 0 ? Cursors.Hand : Cursors.Default;
+			if (old >= 0 && old < conditionsGrid.Rows.Count)
+				conditionsGrid.InvalidateCell(_conditionEnabledColumn.Index, old);
+			if (rowIndex >= 0)
+				conditionsGrid.InvalidateCell(_conditionEnabledColumn.Index, rowIndex);
+		}
+
+		private void ToggleCondition(int rowIndex)
+		{
+			if (rowIndex < 0 || rowIndex >= conditionsGrid.Rows.Count)
+				return;
+
+			var row = conditionsGrid.Rows[rowIndex];
+			if (row.Tag is not int conditionId ||
+			    !_conditionManagerService.Conditions.TryGetValue(conditionId, out var condition))
+				return;
+
+			condition.Enabled = !condition.Enabled;
+			row.Cells[_conditionEnabledColumn.Index].Value = condition.Enabled;
+			StyleConditionRow(row, condition);
+
+			try
+			{
+				_conditionManagerService.SaveConditions();
+			}
+			catch (Exception ex)
+			{
+				_logger.Log($"Could not save conditions: {ex.Message}", Color.Red);
+			}
+
+			_logger.Log($"Condition \"{condition.Name}\" turned {(condition.Enabled ? "on" : "off")}", Color.White);
+		}
+
+		private void StyleConditionRow(DataGridViewRow row, Condition condition)
+		{
+			row.DefaultCellStyle.ForeColor = condition.Enabled ? Color.Empty : Theme.TextMuted;
+			row.Cells[_conditionEnabledColumn.Index].ToolTipText = condition.Enabled
+				? "On: click to stop checking this condition"
+				: "Off: click to start checking this condition";
+			conditionsGrid.InvalidateRow(row.Index);
+		}
+
+		/// <summary>
+		/// Draw the on/off switch cells, matching the switches in the condition editor
+		/// </summary>
+		private void ConditionsGrid_CellPainting(object? sender, DataGridViewCellPaintingEventArgs e)
+		{
+			if (e.ColumnIndex != _conditionEnabledColumn.Index || e.RowIndex < 0 || e.Graphics == null)
+				return;
+
+			var selected = (e.State & DataGridViewElementStates.Selected) != 0;
+			e.PaintBackground(e.CellBounds, selected);
+
+			var on = e.Value is true;
+			var hover = e.RowIndex == _hoverToggleRow;
+			var trackWidth = S(34);
+			var trackHeight = S(18);
+			var track = new Rectangle(
+				e.CellBounds.X + (e.CellBounds.Width - trackWidth) / 2,
+				e.CellBounds.Y + (e.CellBounds.Height - trackHeight) / 2,
+				trackWidth, trackHeight);
+
+			Color fill;
+			if (selected)
+				fill = on ? Theme.Navy : Color.FromArgb(140, Color.White);
+			else
+				fill = on ? (hover ? Theme.Navy : Theme.Sky) : (hover ? Theme.TextMuted : Theme.Border);
+
+			var g = e.Graphics;
+			var oldMode = g.SmoothingMode;
+			g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+
+			using (var path = Ui.Rounded(track, trackHeight / 2))
+			using (var brush = new SolidBrush(fill))
+				g.FillPath(brush, path);
+
+			var knob = trackHeight - S(6);
+			var knobX = on ? track.Right - knob - S(3) : track.X + S(3);
+			g.FillEllipse(Brushes.White, knobX, track.Y + S(3), knob, knob);
+
+			g.SmoothingMode = oldMode;
+			e.Handled = true;
+		}
+
+		#endregion
 
 		private static string DescribeAlertType(AlertType alertType)
 		{
@@ -447,7 +587,7 @@ namespace PlaneAlerter.Forms
 				{
 					if (row.Tag is int conditionId &&
 					    _conditionManagerService.Conditions.TryGetValue(conditionId, out var condition))
-						row.Cells[4].Value = condition.AlertsThisSession;
+						row.Cells[conditionAlertsColumn.Index].Value = condition.AlertsThisSession;
 				}
 
 				UpdateActiveMatches();
@@ -518,7 +658,7 @@ namespace PlaneAlerter.Forms
 
 		private void conditionsGrid_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
 		{
-			if (e.RowIndex < 0)
+			if (e.RowIndex < 0 || e.ColumnIndex == _conditionEnabledColumn.Index)
 				return;
 
 			if (conditionsGrid.Rows[e.RowIndex].Tag is int conditionId)

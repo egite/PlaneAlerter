@@ -32,6 +32,11 @@ namespace PlaneAlerter.Services
 		/// Load conditions
 		/// </summary>
 		void LoadConditions();
+
+		/// <summary>
+		/// Save the current conditions to file
+		/// </summary>
+		void SaveConditions();
 	}
 
 	internal class ConditionManagerService : IConditionManagerService
@@ -103,10 +108,19 @@ namespace PlaneAlerter.Services
 					if (condition == null)
 						throw new Exception($"Condition with id {conditionId} not found in conditions.json.\nConditions should have sequential ids.");
 
+					//Older files turned a condition off with the Disabled alert type, which loses its timing
+					var alertType = condition.RequiredValueStruct<AlertType>("alertType", "AlertType");
+					var enabled = condition.OptionalValueStruct<bool>("Enabled") ?? true;
+					if (alertType == AlertType.Disabled)
+					{
+						enabled = false;
+						alertType = AlertType.First_and_Last_Contact;
+					}
+
 					//Create condition and copy values
 					var newCondition = new Condition(
 						condition.RequiredValue<string>("conditionName", "Name"),
-						condition.RequiredValueStruct<AlertType>("alertType", "AlertType"),
+						alertType,
 						condition.RequiredValueStruct<bool>("ignoreFollowing", "IgnoreFollowing"),
 						condition.OptionalValueStruct<bool>("TriggersUseOrLogic") ?? false,
 						condition.OptionalValueStruct<bool>("emailEnabled", "EmailEnabled") ?? true,
@@ -114,6 +128,7 @@ namespace PlaneAlerter.Services
 						condition.OptionalValue<string>("emailLastFormat", "EmailLastFormat") ?? string.Empty,
 						condition.RequiredValue<List<string>>("recieverEmails", "RecieverEmails", "ReceiverEmails"))
 					{
+						Enabled = enabled,
 						Triggers = condition.RequiredValue<Dictionary<int, Trigger>>("triggers", "Triggers")
 					};
 
@@ -130,8 +145,7 @@ namespace PlaneAlerter.Services
 				}
 
 				//Save to file again in case some defaults were set
-				var conditionsJson = JsonConvert.SerializeObject(Conditions, Formatting.Indented);
-				File.WriteAllText("conditions.json", conditionsJson);
+				SaveConditions();
 
 				//Log to UI
 				_logger.Log("Conditions Loaded", Color.White);
@@ -140,6 +154,15 @@ namespace PlaneAlerter.Services
 			{
 				MessageBox.Show("Error loading conditions:\n\n" + e.Message + "\n\n" + e.StackTrace);
 			}
+		}
+
+		/// <summary>
+		/// Save the current conditions to file
+		/// </summary>
+		public void SaveConditions()
+		{
+			var conditionsJson = JsonConvert.SerializeObject(Conditions, Formatting.Indented);
+			File.WriteAllText("conditions.json", conditionsJson);
 		}
 	}
 }

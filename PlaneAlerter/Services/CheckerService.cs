@@ -208,7 +208,7 @@ namespace PlaneAlerter.Services {
 										 ActiveMatches[aircraft.Icao].Conditions.Exists(x => x.ConditionId == conditionId);
 
 					//Skip if condition is disabled or condition is already matched
-					if (condition.AlertType == AlertType.Disabled || matchedAlready)
+					if (!condition.Enabled || condition.AlertType == AlertType.Disabled || matchedAlready)
 						continue;
 
 					var conditionMatches = ConditionMatcher.Matches(condition, aircraft);
@@ -296,8 +296,9 @@ namespace PlaneAlerter.Services {
 					_logger.LogWithTimeAndAircraft(match.AircraftInfo, "REMOVING", match.Conditions[0].Condition.Name,
 						Color.Orange);
 
-					//Alert if alert type is both or last
-					if (match.Conditions[0].Condition.AlertType is AlertType.First_and_Last_Contact
+					//Alert if alert type is both or last, unless the condition has since been turned off
+					if (match.Conditions[0].Condition.Enabled &&
+					    match.Conditions[0].Condition.AlertType is AlertType.First_and_Last_Contact
 					    or AlertType.Last_Contact)
 					{
 						//Get receiver name

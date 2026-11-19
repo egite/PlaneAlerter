@@ -86,7 +86,7 @@ namespace PlaneAlerter.Forms
 		public static ConditionDraft From(Condition c) => new()
 		{
 			Name = c.Name,
-			Enabled = c.AlertType != AlertType.Disabled,
+			Enabled = c.Enabled && c.AlertType != AlertType.Disabled,
 			Timing = c.AlertType == AlertType.Disabled ? AlertType.First_and_Last_Contact : c.AlertType,
 			IgnoreFollowing = c.IgnoreFollowing,
 			UseOrLogic = c.TriggersUseOrLogic,
@@ -125,9 +125,10 @@ namespace PlaneAlerter.Forms
 			foreach (var rule in Rules)
 				triggers.Add(triggers.Count, rule.ToTrigger());
 
-			return new Condition(Name.Trim(), Enabled ? Timing : AlertType.Disabled, IgnoreFollowing, UseOrLogic,
+			return new Condition(Name.Trim(), Timing, IgnoreFollowing, UseOrLogic,
 				EmailEnabled, FirstSubject, LastSubject, Recipients.ToList())
 			{
+				Enabled = Enabled,
 				Triggers = triggers
 			};
 		}

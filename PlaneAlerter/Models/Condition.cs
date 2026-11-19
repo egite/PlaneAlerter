@@ -15,6 +15,12 @@ namespace PlaneAlerter.Models
 		public string Name { get; }
 
 		/// <summary>
+		/// Whether the condition is checked. Held separately from <see cref="AlertType"/> so turning
+		/// a condition off and on again keeps its alert timing.
+		/// </summary>
+		public bool Enabled { get; set; } = true;
+
+		/// <summary>
 		/// Ignore following conditions
 		/// </summary>
 		public bool IgnoreFollowing { get; }
