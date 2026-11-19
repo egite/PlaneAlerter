@@ -476,7 +476,11 @@ namespace PlaneAlerter.Forms
 			var editItem = new ToolStripMenuItem("Edit condition...") { Font = new Font(menu.Font, FontStyle.Bold) };
 			var enabledItem = new ToolStripMenuItem("Condition on");
 			var emailItem = new ToolStripMenuItem("Email alerts on");
-			menu.Items.AddRange(new ToolStripItem[] { editItem, new ToolStripSeparator(), enabledItem, emailItem });
+			var deleteItem = new ToolStripMenuItem("Delete condition...") { ShortcutKeyDisplayString = "Del" };
+			menu.Items.AddRange(new ToolStripItem[]
+			{
+				editItem, new ToolStripSeparator(), enabledItem, emailItem, new ToolStripSeparator(), deleteItem
+			});
 
 			var menuRow = -1;
 			editItem.Click += (_, _) =>
@@ -486,6 +490,15 @@ namespace PlaneAlerter.Forms
 			};
 			enabledItem.Click += (_, _) => Toggle(_conditionEnabledColumn.Index, menuRow);
 			emailItem.Click += (_, _) => Toggle(conditionRecipientsColumn.Index, menuRow);
+			deleteItem.Click += (_, _) => DeleteCondition(menuRow);
+
+			conditionsGrid.KeyDown += (_, e) =>
+			{
+				if (e.KeyCode != Keys.Delete || conditionsGrid.CurrentRow == null)
+					return;
+				DeleteCondition(conditionsGrid.CurrentRow.Index);
+				e.Handled = true;
+			};
 
 			conditionsGrid.CellMouseDown += (_, e) =>
 			{
@@ -500,6 +513,77 @@ namespace PlaneAlerter.Forms
 				emailItem.Checked = condition.EmailEnabled;
 				menu.Show(Cursor.Position);
 			};
+		}
+
+		/// <summary>
+		/// Delete a condition after confirming. Conditions are stored with sequential ids, so the ones
+		/// after it move up, and active matches are renumbered to suit rather than cleared, which would
+		/// send first contact alerts again for aircraft already being tracked.
+		/// </summary>
+		private void DeleteCondition(int rowIndex)
+		{
+			if (!TryGetCondition(rowIndex, out var row, out var condition) || row.Tag is not int deletedId)
+				return;
+
+			var answer = MessageBox.Show(this,
+				$"Delete the condition \"{condition.Name}\"?\n\nThis can't be undone.",
+				"Delete condition", MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2);
+			if (answer != DialogResult.Yes)
+				return;
+
+			//Renumber the remaining conditions
+			var newIds = new Dictionary<int, int>();
+			var remaining = new Dictionary<int, Condition>();
+			foreach (var (oldId, c) in _conditionManagerService.Conditions.OrderBy(x => x.Key))
+			{
+				if (oldId == deletedId)
+					continue;
+				newIds[oldId] = remaining.Count;
+				remaining.Add(remaining.Count, c);
+			}
+
+			//Drop the deleted condition from active matches, and matches left with no conditions
+			foreach (var match in _checkerService.ActiveMatches.Values.ToList())
+			{
+				var kept = match.Conditions
+					.Where(m => newIds.ContainsKey(m.ConditionId))
+					.Select(m => new MatchedCondition(newIds[m.ConditionId], m.Condition))
+					.ToList();
+
+				if (kept.Count == 0)
+				{
+					_checkerService.ActiveMatches.Remove(match.Icao);
+					continue;
+				}
+
+				match.Conditions.Clear();
+				match.Conditions.AddRange(kept);
+				match.IgnoreFollowing = kept.Any(m => m.Condition.IgnoreFollowing);
+			}
+
+			_conditionManagerService.Conditions = remaining;
+			try
+			{
+				_conditionManagerService.SaveConditions();
+			}
+			catch (Exception ex)
+			{
+				_logger.Log($"Could not save conditions: {ex.Message}", Color.Red);
+			}
+
+			_logger.Log($"Condition \"{condition.Name}\" deleted", Color.White);
+
+			var firstDisplayed = conditionsGrid.FirstDisplayedScrollingRowIndex;
+			UpdateConditionList();
+			UpdateStats();
+
+			if (conditionsGrid.Rows.Count > 0)
+			{
+				if (firstDisplayed >= 0 && firstDisplayed < conditionsGrid.Rows.Count)
+					conditionsGrid.FirstDisplayedScrollingRowIndex = firstDisplayed;
+				var select = Math.Min(rowIndex, conditionsGrid.Rows.Count - 1);
+				conditionsGrid.CurrentCell = conditionsGrid.Rows[select].Cells[conditionNameColumn.Index];
+			}
 		}
 
 		private static int S(int pixels) => Ui.S(pixels);
