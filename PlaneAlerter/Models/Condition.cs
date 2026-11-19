@@ -34,7 +34,7 @@ namespace PlaneAlerter.Models
 		/// <summary>
 		/// Send emails?
 		/// </summary>
-		public bool EmailEnabled { get; }
+		public bool EmailEnabled { get; set; }
 
 		/// <summary>
 		/// Emails to send alert to

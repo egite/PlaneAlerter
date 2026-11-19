@@ -404,13 +404,12 @@ namespace PlaneAlerter.Forms
 					c.Name,
 					DescribeAlertType(c.AlertType),
 					triggerSummary,
-					c.EmailEnabled ? c.ReceiverEmails.Count.ToString() : "off",
+					c.EmailEnabled,
 					c.AlertsThisSession);
 
 				var row = conditionsGrid.Rows[rowIndex];
 				row.Tag = conditionId;
 				row.Cells[conditionTriggersColumn.Index].ToolTipText = triggerSummary.Replace("  ", " ");
-				row.Cells[conditionRecipientsColumn.Index].ToolTipText = c.EmailEnabled ? string.Join(Environment.NewLine, c.ReceiverEmails) : "Email alerts disabled for this condition";
 				StyleConditionRow(row, c);
 			}
 
@@ -433,65 +432,90 @@ namespace PlaneAlerter.Forms
 			ToolTipText = "Turn conditions on or off"
 		};
 
-		private int _hoverToggleRow = -1;
+		//Cell under the mouse when it is over a switch, column -1 for none
+		private (int Column, int Row) _hoverToggle = (-1, -1);
 
 		/// <summary>
-		/// Add a column of on/off switches to the start of the condition list
+		/// Add a column of on/off switches to the start of the condition list, and turn the
+		/// email column into switches
 		/// </summary>
 		private void SetUpConditionToggles()
 		{
 			_conditionEnabledColumn.Width = S(52);
 			conditionsGrid.Columns.Insert(0, _conditionEnabledColumn);
 
+			conditionRecipientsColumn.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+			conditionRecipientsColumn.Width = S(78);
+			conditionRecipientsColumn.ToolTipText = "Turn email alerts on or off";
+
 			conditionsGrid.CellPainting += ConditionsGrid_CellPainting;
 			conditionsGrid.CellMouseClick += (_, e) =>
 			{
-				if (e.Button == MouseButtons.Left && e.RowIndex >= 0 && e.ColumnIndex == _conditionEnabledColumn.Index)
-					ToggleCondition(e.RowIndex);
+				if (e.Button == MouseButtons.Left && e.RowIndex >= 0 && IsToggleColumn(e.ColumnIndex))
+					Toggle(e.ColumnIndex, e.RowIndex);
 			};
 			conditionsGrid.CellMouseEnter += (_, e) =>
-			{
-				var onToggle = e.RowIndex >= 0 && e.ColumnIndex == _conditionEnabledColumn.Index;
-				SetHoverToggleRow(onToggle ? e.RowIndex : -1);
-			};
-			conditionsGrid.MouseLeave += (_, _) => SetHoverToggleRow(-1);
+				SetHoverToggle(e.RowIndex >= 0 && IsToggleColumn(e.ColumnIndex) ? (e.ColumnIndex, e.RowIndex) : (-1, -1));
+			conditionsGrid.MouseLeave += (_, _) => SetHoverToggle((-1, -1));
 			conditionsGrid.KeyDown += (_, e) =>
 			{
 				if (e.KeyCode != Keys.Space || conditionsGrid.CurrentRow == null)
 					return;
-				ToggleCondition(conditionsGrid.CurrentRow.Index);
+				Toggle(_conditionEnabledColumn.Index, conditionsGrid.CurrentRow.Index);
 				e.Handled = true;
 			};
 		}
 
 		private static int S(int pixels) => Ui.S(pixels);
 
-		private void SetHoverToggleRow(int rowIndex)
+		private bool IsToggleColumn(int column) =>
+			column == _conditionEnabledColumn.Index || column == conditionRecipientsColumn.Index;
+
+		private void SetHoverToggle((int Column, int Row) cell)
 		{
-			if (_hoverToggleRow == rowIndex)
+			if (_hoverToggle == cell)
 				return;
 
-			var old = _hoverToggleRow;
-			_hoverToggleRow = rowIndex;
-			conditionsGrid.Cursor = rowIndex >= 0 ? Cursors.Hand : Cursors.Default;
-			if (old >= 0 && old < conditionsGrid.Rows.Count)
-				conditionsGrid.InvalidateCell(_conditionEnabledColumn.Index, old);
-			if (rowIndex >= 0)
-				conditionsGrid.InvalidateCell(_conditionEnabledColumn.Index, rowIndex);
+			var old = _hoverToggle;
+			_hoverToggle = cell;
+			conditionsGrid.Cursor = cell.Column >= 0 ? Cursors.Hand : Cursors.Default;
+			if (old.Column >= 0 && old.Row < conditionsGrid.Rows.Count)
+				conditionsGrid.InvalidateCell(old.Column, old.Row);
+			if (cell.Column >= 0)
+				conditionsGrid.InvalidateCell(cell.Column, cell.Row);
 		}
 
-		private void ToggleCondition(int rowIndex)
+		private bool TryGetCondition(int rowIndex, out DataGridViewRow row, out Condition condition)
 		{
+			row = null!;
+			condition = null!;
 			if (rowIndex < 0 || rowIndex >= conditionsGrid.Rows.Count)
+				return false;
+
+			row = conditionsGrid.Rows[rowIndex];
+			return row.Tag is int conditionId &&
+			       _conditionManagerService.Conditions.TryGetValue(conditionId, out condition!);
+		}
+
+		private void Toggle(int column, int rowIndex)
+		{
+			if (!TryGetCondition(rowIndex, out var row, out var condition))
 				return;
 
-			var row = conditionsGrid.Rows[rowIndex];
-			if (row.Tag is not int conditionId ||
-			    !_conditionManagerService.Conditions.TryGetValue(conditionId, out var condition))
-				return;
+			string message;
+			if (column == conditionRecipientsColumn.Index)
+			{
+				condition.EmailEnabled = !condition.EmailEnabled;
+				message = $"Email alerts for \"{condition.Name}\" turned {(condition.EmailEnabled ? "on" : "off")}";
+			}
+			else
+			{
+				condition.Enabled = !condition.Enabled;
+				message = $"Condition \"{condition.Name}\" turned {(condition.Enabled ? "on" : "off")}";
+			}
 
-			condition.Enabled = !condition.Enabled;
 			row.Cells[_conditionEnabledColumn.Index].Value = condition.Enabled;
+			row.Cells[conditionRecipientsColumn.Index].Value = condition.EmailEnabled;
 			StyleConditionRow(row, condition);
 
 			try
@@ -503,7 +527,7 @@ namespace PlaneAlerter.Forms
 				_logger.Log($"Could not save conditions: {ex.Message}", Color.Red);
 			}
 
-			_logger.Log($"Condition \"{condition.Name}\" turned {(condition.Enabled ? "on" : "off")}", Color.White);
+			_logger.Log(message, Color.White);
 		}
 
 		private void StyleConditionRow(DataGridViewRow row, Condition condition)
@@ -512,28 +536,49 @@ namespace PlaneAlerter.Forms
 			row.Cells[_conditionEnabledColumn.Index].ToolTipText = condition.Enabled
 				? "On: click to stop checking this condition"
 				: "Off: click to start checking this condition";
+
+			var recipients = condition.ReceiverEmails.Count == 0
+				? "No recipients set"
+				: string.Join(Environment.NewLine, condition.ReceiverEmails);
+			row.Cells[conditionRecipientsColumn.Index].ToolTipText = condition.EmailEnabled
+				? $"Emails on: click to stop emailing{Environment.NewLine}{recipients}"
+				: $"Emails off: click to start emailing{Environment.NewLine}{recipients}";
+
 			conditionsGrid.InvalidateRow(row.Index);
 		}
 
 		/// <summary>
-		/// Draw the on/off switch cells, matching the switches in the condition editor
+		/// Draw the on/off switch cells, matching the switches in the condition editor. The email
+		/// switch has the number of recipients beside it.
 		/// </summary>
 		private void ConditionsGrid_CellPainting(object? sender, DataGridViewCellPaintingEventArgs e)
 		{
-			if (e.ColumnIndex != _conditionEnabledColumn.Index || e.RowIndex < 0 || e.Graphics == null)
+			if (e.RowIndex < 0 || !IsToggleColumn(e.ColumnIndex) || e.Graphics == null)
 				return;
 
 			var selected = (e.State & DataGridViewElementStates.Selected) != 0;
 			e.PaintBackground(e.CellBounds, selected);
 
 			var on = e.Value is true;
-			var hover = e.RowIndex == _hoverToggleRow;
+			var hover = _hoverToggle == (e.ColumnIndex, e.RowIndex);
 			var trackWidth = S(34);
 			var trackHeight = S(18);
-			var track = new Rectangle(
-				e.CellBounds.X + (e.CellBounds.Width - trackWidth) / 2,
+			var isEmail = e.ColumnIndex == conditionRecipientsColumn.Index;
+			var trackX = isEmail
+				? e.CellBounds.X + S(8)
+				: e.CellBounds.X + (e.CellBounds.Width - trackWidth) / 2;
+			var track = new Rectangle(trackX,
 				e.CellBounds.Y + (e.CellBounds.Height - trackHeight) / 2,
 				trackWidth, trackHeight);
+
+			if (isEmail && TryGetCondition(e.RowIndex, out _, out var condition))
+			{
+				var countRect = new Rectangle(track.Right + S(6), e.CellBounds.Y,
+					e.CellBounds.Right - track.Right - S(8), e.CellBounds.Height);
+				var countColor = selected ? Theme.TextOnNavy : on && condition.Enabled ? Theme.Text : Theme.TextMuted;
+				TextRenderer.DrawText(e.Graphics, condition.ReceiverEmails.Count.ToString(), e.CellStyle?.Font ?? conditionsGrid.Font,
+					countRect, countColor, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine);
+			}
 
 			Color fill;
 			if (selected)
@@ -658,7 +703,7 @@ namespace PlaneAlerter.Forms
 
 		private void conditionsGrid_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
 		{
-			if (e.RowIndex < 0 || e.ColumnIndex == _conditionEnabledColumn.Index)
+			if (e.RowIndex < 0 || IsToggleColumn(e.ColumnIndex))
 				return;
 
 			if (conditionsGrid.Rows[e.RowIndex].Tag is int conditionId)
