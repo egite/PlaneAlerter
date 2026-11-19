@@ -119,6 +119,7 @@ namespace PlaneAlerter.Forms
 			emptyStateLabel.ForeColor = Theme.TextMuted;
 			consoleFilterComboBox.SelectedIndex = 0;
 			SetUpConditionToggles();
+			SetUpConditionMenu();
 
 			//Services raise these from the checker thread, so every handler hops to the UI thread
 			_logger.NewLogMessage += (_, _) => OnUi(FlushLogQueue);
@@ -463,6 +464,41 @@ namespace PlaneAlerter.Forms
 					return;
 				Toggle(_conditionEnabledColumn.Index, conditionsGrid.CurrentRow.Index);
 				e.Handled = true;
+			};
+		}
+
+		/// <summary>
+		/// Right-click menu on a condition row: edit it, or switch it or its emails on and off
+		/// </summary>
+		private void SetUpConditionMenu()
+		{
+			var menu = new ContextMenuStrip(components) { Renderer = Theme.Renderer };
+			var editItem = new ToolStripMenuItem("Edit condition...") { Font = new Font(menu.Font, FontStyle.Bold) };
+			var enabledItem = new ToolStripMenuItem("Condition on");
+			var emailItem = new ToolStripMenuItem("Email alerts on");
+			menu.Items.AddRange(new ToolStripItem[] { editItem, new ToolStripSeparator(), enabledItem, emailItem });
+
+			var menuRow = -1;
+			editItem.Click += (_, _) =>
+			{
+				if (TryGetCondition(menuRow, out var row, out _) && row.Tag is int conditionId)
+					OpenConditionEditor(conditionId);
+			};
+			enabledItem.Click += (_, _) => Toggle(_conditionEnabledColumn.Index, menuRow);
+			emailItem.Click += (_, _) => Toggle(conditionRecipientsColumn.Index, menuRow);
+
+			conditionsGrid.CellMouseDown += (_, e) =>
+			{
+				if (e.Button != MouseButtons.Right || e.RowIndex < 0 ||
+				    !TryGetCondition(e.RowIndex, out var row, out var condition))
+					return;
+
+				//Select the row under the mouse so it's clear which condition the menu is for
+				conditionsGrid.CurrentCell = row.Cells[Math.Max(e.ColumnIndex, 0)];
+				menuRow = e.RowIndex;
+				enabledItem.Checked = condition.Enabled;
+				emailItem.Checked = condition.EmailEnabled;
+				menu.Show(Cursor.Position);
 			};
 		}
 
